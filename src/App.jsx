@@ -51,7 +51,10 @@ export default function App() {
       .eq('student_id', studentId)
 
     const initial = {}
-    LESSONS.forEach(l => { initial[l.id] = 'P' })
+    // Default all lessons to null so none of P, A, L, or N start pre-selected
+    LESSONS.forEach(l => { initial[l.id] = null })
+
+    // Override with saved database records if they exist
     if (data && data.length > 0) {
       data.forEach(item => {
         initial[item.lesson_key] = item.status
@@ -63,14 +66,23 @@ export default function App() {
 
   const handleSaveAttendance = async () => {
     if (!selectedStudentId || !selectedWeek) return
-    setLoading(true)
 
-    const updates = LESSONS.map(lesson => ({
-      student_id: selectedStudentId,
-      week_start: selectedWeek.startDateStr,
-      lesson_key: lesson.id,
-      status: attendance[lesson.id] || 'P'
-    }))
+    // Filter out unmarked lessons (where status is null or undefined)
+    const updates = LESSONS
+      .filter(lesson => attendance[lesson.id] !== null && attendance[lesson.id] !== undefined)
+      .map(lesson => ({
+        student_id: selectedStudentId,
+        week_start: selectedWeek.startDateStr,
+        lesson_key: lesson.id,
+        status: attendance[lesson.id]
+      }))
+
+    if (updates.length === 0) {
+      alert('Please select attendance status for at least one lesson before saving.')
+      return
+    }
+
+    setLoading(true)
 
     const { error } = await supabase
       .from('attendance')
