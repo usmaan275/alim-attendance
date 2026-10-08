@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { LESSONS, MONTHS, getWeeksForMonth } from './constants'
+import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate } from './constants'
 import './App.css'
 
 export default function App() {
@@ -179,7 +179,7 @@ export default function App() {
                   className="week-card"
                 >
                   <span className="week-card-text">
-                    <span className="week-card-label">Week Beginning</span>
+                    <span className="week-card-label">Week Range</span>
                     <span className="week-card-value">{w.label}</span>
                   </span>
                   <span className="week-card-arrow">&rarr;</span>
@@ -219,7 +219,7 @@ export default function App() {
                   {LESSONS.map(lesson => (
                     <div key={lesson.id} className="lesson-card">
                       <div className="lesson-top">
-                        <div className="lesson-day">{lesson.day}</div>
+                        <div className="lesson-day">{getFormattedLessonDate(selectedWeek?.startDateStr, lesson.day)}</div>
                         <div className="lesson-time">{lesson.time}</div>
                         <span className="teacher-badge">{lesson.teacher}</span>
                       </div>
