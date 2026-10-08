@@ -315,7 +315,7 @@ export default function App() {
           <section className="view">
             <h2 className="section-title">Class Attendance Overview</h2>
             <p className="section-sub">
-              Statistics are based on all marked sessions across the term.
+              Statistics are based on all marked sessions across the term. Attendance rate is calculated as attened lessons (presents + lates) divided by total marked sessions.
             </p>
 
             <div className="table-wrap">
@@ -323,15 +323,17 @@ export default function App() {
                 <colgroup>
                   <col style={{ width: '17%' }} />
                   <col style={{ width: '35%' }} />
-                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '14%' }} />
                   <col style={{ width: '20%' }} />
                 </colgroup>
                 <thead>
                   <tr>
                     <th>Roll No</th>
                     <th>Student Name</th>
-                    <th>Attended / Total</th>
-                    <th>Attendance Rate</th>
+                    <th>Attended</th>
+                    <th>Total</th>
+                    <th>Rate</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -339,7 +341,8 @@ export default function App() {
                     <tr key={s.id}>
                       <td><span className="roll-badge">#{s.roll_no}</span></td>
                       <td className="student-name"><span>{s.name}</span></td>
-                      <td className="attended">{s.presentCount} / {s.denominator} lessons</td>
+                      <td className="attended">{s.presentCount}</td>
+                      <td className="total">{s.denominator}</td>
                       <td>
                         <span className={`pct-badge ${s.pct === 'N/A' ? 'neutral' : parseFloat(s.pct) >= 70 ? 'good' : 'low'}`}>
                           {s.pct}{s.pct !== 'N/A' && '%'}
