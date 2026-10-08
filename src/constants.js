@@ -1,0 +1,56 @@
+export const LESSONS = [
+    { id: 'mon_1', day: 'Monday', time: '7:00-7:40', teacher: 'Ml Abubkr' },
+    { id: 'mon_2', day: 'Monday', time: '7:40-9:00', teacher: 'Ml Raqib' },
+    { id: 'tue_1', day: 'Tuesday', time: '7:00-8:00', teacher: 'Mufti Zubair' },
+    { id: 'tue_2', day: 'Tuesday', time: '8:00-9:00', teacher: 'Mufti Zubair' },
+    { id: 'wed_1', day: 'Wednesday', time: '7:00-7:40', teacher: 'Ml Abubkr' },
+    { id: 'wed_2', day: 'Wednesday', time: '7:40-9:00', teacher: 'Ml Raqib' },
+    { id: 'thu_1', day: 'Thursday', time: '7:00-7:40', teacher: 'Ml Abubkr' },
+    { id: 'thu_2', day: 'Thursday', time: '7:40-9:00', teacher: 'Ml Raqib' },
+    { id: 'fri_1', day: 'Friday', time: '6:15-7:15', teacher: 'Mufti Zubair' },
+    { id: 'fri_2', day: 'Friday', time: '7:15-8:15', teacher: 'Ml Raqib' }
+  ]
+  
+  export const MONTHS = [
+    { name: 'September 2026', year: 2026, month: 8 },
+    { name: 'October 2026', year: 2026, month: 9 },
+    { name: 'November 2026', year: 2026, month: 10 },
+    { name: 'December 2026', year: 2026, month: 11 },
+    { name: 'January 2027', year: 2027, month: 0 },
+    { name: 'February 2027', year: 2027, month: 1 },
+    { name: 'March 2027', year: 2027, month: 2 },
+    { name: 'April 2027', year: 2027, month: 3 },
+    { name: 'May 2027', year: 2027, month: 4 },
+    { name: 'June 2027', year: 2027, month: 5 },
+    { name: 'July 2027', year: 2027, month: 6 },
+    { name: 'August 2027', year: 2027, month: 7 }
+  ]
+  
+  export function getWeeksForMonth(year, monthIndex) {
+    const weeks = []
+    const date = new Date(year, monthIndex, 1)
+  
+    // Align to Monday of that week
+    const day = date.getDay()
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+    const currentMonday = new Date(year, monthIndex, diff)
+  
+    while (
+      currentMonday.getMonth() <= monthIndex ||
+      (currentMonday.getFullYear() === year && currentMonday.getMonth() <= monthIndex)
+    ) {
+      const mon = new Date(currentMonday)
+      const sun = new Date(currentMonday)
+      sun.setDate(sun.getDate() + 6)
+  
+      weeks.push({
+        startDateStr: mon.toISOString().split('T')[0],
+        label: `${mon.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${sun.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      })
+  
+      currentMonday.setDate(currentMonday.getDate() + 7)
+      if (currentMonday.getFullYear() > year) break
+    }
+  
+    return weeks
+  }
