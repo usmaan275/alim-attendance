@@ -122,3 +122,25 @@ export function isFutureLesson(weekStartStr, dayName) {
 
   return lessonDate > today
 }
+
+export function isCurrentMonth(year, monthIndex) {
+  const today = new Date()
+  return today.getFullYear() === year && today.getMonth() === monthIndex
+}
+
+export function isCurrentWeek(weekStartStr) {
+  if (!weekStartStr) return false
+  const today = new Date()
+  
+  // Calculate Monday of the current week
+  const day = today.getDay()
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1)
+  const currentMonday = new Date(today.setDate(diff))
+  
+  const y = currentMonday.getFullYear()
+  const m = String(currentMonday.getMonth() + 1).padStart(2, '0')
+  const d = String(currentMonday.getDate()).padStart(2, '0')
+  const currentMondayStr = `${y}-${m}-${d}`
+
+  return weekStartStr === currentMondayStr
+}

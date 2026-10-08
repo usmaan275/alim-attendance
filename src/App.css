@@ -257,6 +257,34 @@
   text-overflow: ellipsis;
 }
 
+/* Glowing accent for current month/week */
+.month-card.current-glow,
+.week-card.current-glow {
+  border-color: var(--accent);
+  box-shadow: 0 0 15px var(--accent-soft), 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
+  background-color: var(--accent-soft);
+}
+
+.current-badge {
+  position: absolute;
+  bottom: 0.7em;
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-top: 6px;
+  letter-spacing: 0.05em;
+}
+
+.current-inline-badge {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.75rem;
+  margin-left: 0.08em;
+}
+
 .select-label { display: block; height: 1.2em; margin-bottom: 0.35em; font-size: 0.8em; color: var(--muted); }
 
 .select {

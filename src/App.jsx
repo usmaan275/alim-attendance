@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate, isFutureLesson } from './constants'
+import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate, isFutureLesson, isCurrentMonth, isCurrentWeek } from './constants'
 import './App.css'
 
 export default function App() {
@@ -197,43 +197,54 @@ export default function App() {
           </nav>
         </header>
 
+        {/* 1. HOME VIEW: Month Grid */}
         {view === 'home' && (
           <section className="view">
             <h2 className="section-title">Select Month</h2>
             <div className="month-grid">
-              {MONTHS.map(m => (
-                <button
-                  key={m.name}
-                  onClick={() => { setSelectedMonth(m); setView('month'); }}
-                  className="month-card"
-                >
-                  <span className="month-name">{m.name.split(' ')[0]}</span>
-                  <span className="month-year">{m.name.split(' ')[1]}</span>
-                </button>
-              ))}
+              {MONTHS.map(m => {
+                const isCurrent = isCurrentMonth(m.year, m.month)
+                return (
+                  <button
+                    key={m.name}
+                    onClick={() => { setSelectedMonth(m); setView('month'); }}
+                    className={`month-card ${isCurrent ? 'current-glow' : ''}`}
+                  >
+                    <span className="month-name">{m.name.split(' ')[0]}</span>
+                    <span className="month-year">{m.name.split(' ')[1]}</span>
+                    {isCurrent && <span className="current-badge">Current Month</span>}
+                  </button>
+                )
+              })}
             </div>
           </section>
         )}
 
+        {/* 2. MONTH VIEW: Weeks List */}
         {view === 'month' && selectedMonth && (
           <section className="view">
             <h2 className="section-title">{selectedMonth.name}</h2>
             <p className="section-sub">Select a week to log or review attendance:</p>
 
             <div className="week-list">
-              {getWeeksForMonth(selectedMonth.year, selectedMonth.month).map(w => (
-                <button
-                  key={w.startDateStr}
-                  onClick={() => { setSelectedWeek(w); setView('week'); }}
-                  className="week-card"
-                >
-                  <span className="week-card-text">
-                    <span className="week-card-label">Week Range</span>
-                    <span className="week-card-value">{w.label}</span>
-                  </span>
-                  <span className="week-card-arrow">&rarr;</span>
-                </button>
-              ))}
+              {getWeeksForMonth(selectedMonth.year, selectedMonth.month).map(w => {
+                const isCurrent = isCurrentWeek(w.startDateStr)
+                return (
+                  <button
+                    key={w.startDateStr}
+                    onClick={() => { setSelectedWeek(w); setView('week'); }}
+                    className={`week-card ${isCurrent ? 'current-glow' : ''}`}
+                  >
+                    <span className="week-card-text">
+                      <span className="week-card-label">
+                        Week Range {isCurrent && <span className="current-inline-badge">• Current Week</span>}
+                      </span>
+                      <span className="week-card-value">{w.label}</span>
+                    </span>
+                    <span className="week-card-arrow">&rarr;</span>
+                  </button>
+                )
+              })}
             </div>
           </section>
         )}
@@ -393,10 +404,10 @@ export default function App() {
                       <td>
                         <span
                           className={`pct-badge ${s.pct === 'N/A'
-                              ? 'neutral'
-                              : parseFloat(s.pct) <= 20
-                                ? 'good'
-                                : 'low'
+                            ? 'neutral'
+                            : parseFloat(s.pct) <= 20
+                              ? 'good'
+                              : 'low'
                             }`}
                         >
                           {s.pct}{s.pct !== 'N/A' && '%'}
