@@ -389,7 +389,7 @@ export default function App() {
                         <span>{s.name}</span>
                       </td>
                       <td>{s.lateCount}</td>
-                      <td>{s.attendedCount} lessons</td>
+                      <td>{s.attendedCount}</td>
                       <td>
                         <span
                           className={`pct-badge ${s.pct === 'N/A'
