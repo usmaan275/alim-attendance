@@ -18,6 +18,13 @@ export default function App() {
     fetchAllAttendance()
   }, [])
 
+  // Re-load attendance automatically whenever selected student or week changes
+  useEffect(() => {
+    if (view === 'week' && selectedWeek && selectedStudentId) {
+      loadWeekAttendance(selectedWeek.startDateStr, selectedStudentId)
+    }
+  }, [selectedStudentId, selectedWeek, view])
+
   async function fetchStudents() {
     const { data } = await supabase.from('students').select('*').order('roll_no')
     if (data && data.length > 0) {
@@ -27,12 +34,16 @@ export default function App() {
   }
 
   async function fetchAllAttendance() {
-    const { data } = await supabase.from('attendance').select('*')
+    const { data } = await supabase
+      .from('attendance')
+      .select('student_id, week_start, lesson_key, status')
     if (data) setAllAttendance(data)
   }
 
   async function loadWeekAttendance(weekStart, studentId) {
+    if (!weekStart || !studentId) return
     setLoading(true)
+
     const { data } = await supabase
       .from('attendance')
       .select('*')
@@ -41,20 +52,13 @@ export default function App() {
 
     const initial = {}
     LESSONS.forEach(l => { initial[l.id] = 'P' })
-    if (data) {
+    if (data && data.length > 0) {
       data.forEach(item => {
         initial[item.lesson_key] = item.status
       })
     }
     setAttendance(initial)
     setLoading(false)
-  }
-
-  const handleStudentChange = (studentId) => {
-    setSelectedStudentId(studentId)
-    if (selectedWeek) {
-      loadWeekAttendance(selectedWeek.startDateStr, studentId)
-    }
   }
 
   const handleSaveAttendance = async () => {
@@ -82,7 +86,7 @@ export default function App() {
   }
 
   const calculateClassStats = () => {
-    if (students.length === 0 || allAttendance.length === 0) return []
+    if (students.length === 0) return []
 
     const markedSessions = new Set(
       allAttendance.filter(a => ['P', 'A', 'L'].includes(a.status)).map(a => `${a.week_start}_${a.lesson_key}`)
@@ -94,7 +98,7 @@ export default function App() {
         a => a.student_id === s.id && ['P', 'A', 'L'].includes(a.status)
       )
       const presentCount = studentRecords.filter(a => a.status === 'P' || a.status === 'L').length
-      const pct = denominator > 0 ? ((presentCount / denominator) * 100).toFixed(1) : '100.0'
+      const pct = denominator > 0 ? ((presentCount / denominator) * 100).toFixed(1) : 'N/A'
 
       return {
         ...s,
@@ -105,26 +109,29 @@ export default function App() {
     })
   }
 
-  // Back button config: always rendered in the same top-left slot
+  const navigateToHome = () => {
+    setSelectedMonth(null)
+    setSelectedWeek(null)
+    setView('home')
+  }
+
   const back =
-    view === 'month' ? { to: 'home', label: 'Back to Months' } :
-    view === 'week' ? { to: 'month', label: 'Back to Weeks' } :
-    view === 'stats' ? { to: 'home', label: 'Back to Dashboard' } :
+    view === 'month' ? { action: navigateToHome, label: 'Back to Months' } :
+    view === 'week' ? { action: () => setView('month'), label: 'Back to Weeks' } :
+    view === 'stats' ? { action: navigateToHome, label: 'Back to Dashboard' } :
     null
 
   return (
     <div className="shell">
       <div className="app">
-        {/* Top bar: fixed slot, back button always top-left */}
         <div className="topbar">
           {back && (
-            <button onClick={() => setView(back.to)} className="back-btn">
+            <button onClick={back.action} className="back-btn">
               &larr; {back.label}
             </button>
           )}
         </div>
 
-        {/* Header */}
         <header className="header">
           <div className="brand">
             <h1 className="title">Alim Class Year 5</h1>
@@ -132,7 +139,7 @@ export default function App() {
           </div>
           <nav className="tabs">
             <button
-              onClick={() => setView('home')}
+              onClick={navigateToHome}
               className={`tab ${view === 'home' || view === 'month' || view === 'week' ? 'active' : ''}`}
             >
               Dashboard
@@ -146,7 +153,6 @@ export default function App() {
           </nav>
         </header>
 
-        {/* 1. HOME VIEW: Month Grid (3 columns x 4 rows) */}
         {view === 'home' && (
           <section className="view">
             <h2 className="section-title">Select Month</h2>
@@ -165,7 +171,6 @@ export default function App() {
           </section>
         )}
 
-        {/* 2. MONTH VIEW: Weeks List */}
         {view === 'month' && selectedMonth && (
           <section className="view">
             <h2 className="section-title">{selectedMonth.name}</h2>
@@ -175,7 +180,7 @@ export default function App() {
               {getWeeksForMonth(selectedMonth.year, selectedMonth.month).map(w => (
                 <button
                   key={w.startDateStr}
-                  onClick={() => { setSelectedWeek(w); setView('week'); loadWeekAttendance(w.startDateStr, selectedStudentId); }}
+                  onClick={() => { setSelectedWeek(w); setView('week'); }}
                   className="week-card"
                 >
                   <span className="week-card-text">
@@ -189,7 +194,6 @@ export default function App() {
           </section>
         )}
 
-        {/* 3. WEEK VIEW: Lessons grid (2 columns x 5 rows) */}
         {view === 'week' && selectedWeek && (
           <section className="view">
             <div className="week-header">
@@ -201,7 +205,7 @@ export default function App() {
                 <label className="select-label">Select Student</label>
                 <select
                   value={selectedStudentId}
-                  onChange={e => handleStudentChange(e.target.value)}
+                  onChange={e => setSelectedStudentId(e.target.value)}
                   className="select"
                 >
                   {students.map(s => (
@@ -253,7 +257,6 @@ export default function App() {
           </section>
         )}
 
-        {/* 4. STATS VIEW */}
         {view === 'stats' && (
           <section className="view">
             <h2 className="section-title">Class Attendance Overview</h2>
@@ -284,8 +287,8 @@ export default function App() {
                       <td className="student-name"><span>{s.name}</span></td>
                       <td className="attended">{s.presentCount} / {s.denominator} lessons</td>
                       <td>
-                        <span className={`pct-badge ${parseFloat(s.pct) >= 80 ? 'good' : 'low'}`}>
-                          {s.pct}%
+                        <span className={`pct-badge ${s.pct === 'N/A' ? 'neutral' : parseFloat(s.pct) >= 80 ? 'good' : 'low'}`}>
+                          {s.pct}{s.pct !== 'N/A' && '%'}
                         </span>
                       </td>
                     </tr>

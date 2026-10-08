@@ -28,7 +28,6 @@ export const MONTHS = [
   { name: 'August 2027', year: 2027, month: 7 }
 ]
 
-// Helper to format date as YYYY-MM-DD using local time (avoids ISO timezone shifts)
 function toLocalDateStr(date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -38,28 +37,32 @@ function toLocalDateStr(date) {
 
 export function getWeeksForMonth(year, monthIndex) {
   const weeks = []
-  const date = new Date(year, monthIndex, 1)
-
-  // Align to Monday of that week
-  const day = date.getDay()
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+  
+  const firstOfMonth = new Date(year, monthIndex, 1)
+  const day = firstOfMonth.getDay()
+  const diff = firstOfMonth.getDate() - day + (day === 0 ? -6 : 1)
   const currentMonday = new Date(year, monthIndex, diff)
 
-  while (
-    currentMonday.getMonth() <= monthIndex ||
-    (currentMonday.getFullYear() === year && currentMonday.getMonth() <= monthIndex)
-  ) {
+  while (true) {
     const mon = new Date(currentMonday)
     const sun = new Date(currentMonday)
     sun.setDate(sun.getDate() + 6)
 
-    weeks.push({
-      startDateStr: toLocalDateStr(mon), // Uses pure local date string YYYY-MM-DD
-      label: `${mon.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${sun.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-    })
+    // A week belongs to this month if Monday OR Sunday is inside the month
+    const belongsToMonth = 
+      (mon.getFullYear() === year && mon.getMonth() === monthIndex) ||
+      (sun.getFullYear() === year && sun.getMonth() === monthIndex)
+
+    if (belongsToMonth) {
+      weeks.push({
+        startDateStr: toLocalDateStr(mon),
+        label: `${mon.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${sun.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      })
+    } else if (mon > new Date(year, monthIndex + 1, 1)) {
+      break
+    }
 
     currentMonday.setDate(currentMonday.getDate() + 7)
-    if (currentMonday.getFullYear() > year) break
   }
 
   return weeks
