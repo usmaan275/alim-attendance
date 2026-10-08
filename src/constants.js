@@ -98,3 +98,27 @@ export function getFormattedLessonDate(weekStartStr, dayName) {
 
   return `${dayName} ${dayNum}${suffix(dayNum)}`
 }
+
+export function isFutureLesson(weekStartStr, dayName) {
+  if (!weekStartStr) return false
+
+  const dayOffsets = {
+    'Monday': 0,
+    'Tuesday': 1,
+    'Wednesday': 2,
+    'Thursday': 3,
+    'Friday': 4,
+    'Saturday': 5,
+    'Sunday': 6
+  }
+
+  const offset = dayOffsets[dayName] ?? 0
+  const [year, month, day] = weekStartStr.split('-').map(Number)
+  const lessonDate = new Date(year, month - 1, day + offset)
+
+  // Get current date at local midnight for accurate comparison
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  return lessonDate > today
+}

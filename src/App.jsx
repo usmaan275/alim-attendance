@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate } from './constants'
+import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate, isFutureLesson } from './constants'
 import './App.css'
 
 export default function App() {
@@ -121,6 +121,38 @@ export default function App() {
     })
   }
 
+  const calculateLatenessStats = () => {
+    if (students.length === 0) return []
+
+    return students
+      .map(s => {
+        const studentRecords = allAttendance.filter(
+          a => a.student_id === s.id && ['P', 'L'].includes(a.status)
+        )
+
+        const presentCount = studentRecords.filter(a => a.status === 'P').length
+        const lateCount = studentRecords.filter(a => a.status === 'L').length
+        const attendedCount = presentCount + lateCount
+
+        const pct = attendedCount > 0
+          ? ((lateCount / attendedCount) * 100).toFixed(1)
+          : 'N/A'
+
+        return {
+          ...s,
+          presentCount,
+          lateCount,
+          attendedCount,
+          pct
+        }
+      })
+      .sort((a, b) => {
+        if (a.pct === 'N/A') return 1
+        if (b.pct === 'N/A') return -1
+        return parseFloat(b.pct) - parseFloat(a.pct)
+      })
+  }
+
   const navigateToHome = () => {
     setSelectedMonth(null)
     setSelectedWeek(null)
@@ -129,9 +161,9 @@ export default function App() {
 
   const back =
     view === 'month' ? { action: navigateToHome, label: 'Back to Months' } :
-    view === 'week' ? { action: () => setView('month'), label: 'Back to Weeks' } :
-    view === 'stats' ? { action: navigateToHome, label: 'Back to Dashboard' } :
-    null
+      view === 'week' ? { action: () => setView('month'), label: 'Back to Weeks' } :
+        view === 'stats' ? { action: navigateToHome, label: 'Back to Dashboard' } :
+          null
 
   return (
     <div className="shell">
@@ -232,33 +264,43 @@ export default function App() {
             ) : (
               <>
                 <div className="lesson-grid">
-                  {LESSONS.map(lesson => (
-                    <div key={lesson.id} className="lesson-card">
-                      <div className="lesson-top">
-                        <div className="lesson-day">{getFormattedLessonDate(selectedWeek?.startDateStr, lesson.day)}</div>
-                        <div className="lesson-time">{lesson.time}</div>
-                        <span className="teacher-badge">{lesson.teacher}</span>
-                      </div>
+                  {LESSONS.map(lesson => {
+                    const isFuture = isFutureLesson(selectedWeek?.startDateStr, lesson.day)
 
-                      <div className="status-row">
-                        {[
-                          { label: 'P', value: 'P', title: 'Present' },
-                          { label: 'A', value: 'A', title: 'Absent' },
-                          { label: 'L', value: 'L', title: 'Late' },
-                          { label: 'N', value: 'N', title: 'No Class' }
-                        ].map(opt => (
-                          <button
-                            key={opt.value}
-                            onClick={() => setAttendance(prev => ({ ...prev, [lesson.id]: opt.value }))}
-                            title={opt.title}
-                            className={`status-btn ${attendance[lesson.id] === opt.value ? `selected s-${opt.value}` : ''}`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
+                    return (
+                      <div key={lesson.id} className={`lesson-card ${isFuture ? 'disabled' : ''}`}>
+                        <div className="lesson-top">
+                          <div className="lesson-day">
+                            {getFormattedLessonDate(selectedWeek?.startDateStr, lesson.day)}
+                          </div>
+                          <div className="lesson-time">{lesson.time}</div>
+                          <span className="teacher-badge">{lesson.teacher}</span>
+                        </div>
+
+                        {isFuture ? (
+                          <div className="future-tag">Future Lesson</div>
+                        ) : (
+                          <div className="status-row">
+                            {[
+                              { label: 'P', value: 'P', title: 'Present' },
+                              { label: 'A', value: 'A', title: 'Absent' },
+                              { label: 'L', value: 'L', title: 'Late' },
+                              { label: 'N', value: 'N', title: 'No Class' }
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => setAttendance(prev => ({ ...prev, [lesson.id]: opt.value }))}
+                                title={opt.title}
+                                className={`status-btn ${attendance[lesson.id] === opt.value ? `selected s-${opt.value}` : ''}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 <button onClick={handleSaveAttendance} className="submit-btn">
@@ -299,7 +341,61 @@ export default function App() {
                       <td className="student-name"><span>{s.name}</span></td>
                       <td className="attended">{s.presentCount} / {s.denominator} lessons</td>
                       <td>
-                        <span className={`pct-badge ${s.pct === 'N/A' ? 'neutral' : parseFloat(s.pct) >= 80 ? 'good' : 'low'}`}>
+                        <span className={`pct-badge ${s.pct === 'N/A' ? 'neutral' : parseFloat(s.pct) >= 70 ? 'good' : 'low'}`}>
+                          {s.pct}{s.pct !== 'N/A' && '%'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <h2 className="section-title" style={{ marginTop: '40px' }}>
+              Class Lateness Overview
+            </h2>
+            <p className="section-sub">
+              Lateness is calculated as late lessons divided by attended lessons (presents + lates).
+            </p>
+
+            <div className="table-wrap">
+              <table className="table">
+                <colgroup>
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '35%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '18%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Roll No</th>
+                    <th>Student Name</th>
+                    <th>Late</th>
+                    <th>Attended</th>
+                    <th>Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calculateLatenessStats().map(s => (
+                    <tr key={s.id}>
+                      <td>
+                        <span className="roll-badge">#{s.roll_no}</span>
+                      </td>
+                      <td className="student-name">
+                        <span>{s.name}</span>
+                      </td>
+                      <td>{s.lateCount}</td>
+                      <td>{s.attendedCount} lessons</td>
+                      <td>
+                        <span
+                          className={`pct-badge ${s.pct === 'N/A'
+                              ? 'neutral'
+                              : parseFloat(s.pct) <= 20
+                                ? 'good'
+                                : 'low'
+                            }`}
+                        >
                           {s.pct}{s.pct !== 'N/A' && '%'}
                         </span>
                       </td>

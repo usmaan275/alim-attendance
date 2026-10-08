@@ -463,3 +463,19 @@
 @media (prefers-reduced-motion: reduce) {
   .shell * { transition: none !important; }
 }
+
+.lesson-card.disabled {
+  opacity: 0.6;
+  background-color: #cfd1d3;
+  border-style: dashed;
+}
+
+.future-tag {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-align: center;
+  padding: 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
