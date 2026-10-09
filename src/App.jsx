@@ -457,11 +457,11 @@ export default function App() {
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '34%' }} />
                   <col style={{ width: '15%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '35%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '20%' }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -500,11 +500,11 @@ export default function App() {
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '34%' }} />
                   <col style={{ width: '15%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '35%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '20%' }} />
                 </colgroup>
                 <thead>
                   <tr>
