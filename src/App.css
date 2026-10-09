@@ -244,7 +244,7 @@
 }
 
 .week-header-range { height: 3em; min-width: 0; }
-.week-header-eyebrow { display: block; height: 1.2em; font-size: 0.8em; color: var(--muted); }
+.week-header-eyebrow { display: block; height: 1.2em; font-size: 0.8em; color: var(--muted); margin-bottom: 0.2em; }
 .week-header-title {
   margin: 0.1em 0 0;
   height: 1.4em;
@@ -284,7 +284,7 @@
   margin-left: 0.05em;
 }
 
-.select-label { display: block; height: 1.2em; margin-bottom: 0.35em; font-size: 0.8em; color: var(--muted); }
+.select-label { display: block; height: 1.2em; margin-bottom: 0.85em; font-size: 0.8em; color: var(--muted); }
 
 .select {
   width: 100%;
