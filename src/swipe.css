@@ -1,0 +1,102 @@
+/* ---------- Swipe navigation (weeks and months) ----------
+   Loaded after App.css; uses the same colour variables from .shell. */
+
+/* The wrapper listens for touches. Vertical scrolling stays native,
+   horizontal drags are handled by the swipe code. */
+.swipe-area {
+  overflow-x: clip;
+  touch-action: pan-y;
+}
+
+/* Months list is short, so reserve height to let a swipe start anywhere below it */
+.swipe-area.tall { min-height: 26em; }
+
+/* New page slides in from the side you swiped towards */
+@keyframes slide-in-next {
+  from { transform: translate3d(35%, 0, 0); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0);   opacity: 1; }
+}
+@keyframes slide-in-prev {
+  from { transform: translate3d(-35%, 0, 0); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0);    opacity: 1; }
+}
+.slide-in-next { animation: slide-in-next 0.22s ease-out; }
+.slide-in-prev { animation: slide-in-prev 0.22s ease-out; }
+
+/* ---------- Prev / next arrows ---------- */
+.nav-arrow {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.4em;
+  height: 2.4em;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75em;
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+}
+.nav-arrow:active:not(:disabled) { transform: scale(0.92); background: var(--accent-soft); border-color: var(--accent-line); }
+.nav-arrow:disabled { opacity: 0.35; cursor: default; }
+
+/* Week header: [ < ]  week range  [ > ] */
+.week-header-top {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+}
+.week-header-top .week-header-range {
+  flex: 1;
+  text-align: center;
+}
+
+/* Month view: [ < ]  month name  [ > ] */
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  margin-bottom: 0.9em;
+}
+.title-row .section-title {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  text-align: center;
+}
+
+/* ---------- Loading spinner ---------- */
+.spinner {
+  width: 2.6em;
+  height: 2.6em;
+  border: 0.25em solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* visually hidden, still read by screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (hover: hover) {
+  .nav-arrow:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-line); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-in-next, .slide-in-prev { animation: none; }
+  .spinner { animation-duration: 1.6s; } /* slower, but still shows activity */
+}

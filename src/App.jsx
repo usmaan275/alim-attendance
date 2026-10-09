@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate, isFutureLesson, isCurrentMonth, isCurrentWeek, getLessonDateObj } from './constants'
 import './App.css'
+import './swipe.css'
 
 // ---------- Advanced analytics filter options (derived from LESSONS) ----------
 const ALL_TEACHERS = 'All Teachers'
@@ -9,6 +10,171 @@ const ALL_DAYS = 'All Days'
 const TEACHERS = [ALL_TEACHERS, ...new Set(LESSONS.map(l => l.teacher))]
 const DAYS = [ALL_DAYS, ...new Set(LESSONS.map(l => l.day))]
 const LESSON_BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]))
+
+// ---------- Every week of the term in order (used for swiping between weeks) ----------
+// A week that touches two months is listed once.
+const ALL_WEEKS = (() => {
+  const seen = new Set()
+  const list = []
+  MONTHS.forEach(m => {
+    getWeeksForMonth(m.year, m.month).forEach(w => {
+      if (!seen.has(w.startDateStr)) {
+        seen.add(w.startDateStr)
+        list.push(w)
+      }
+    })
+  })
+  return list.sort((a, b) => a.startDateStr.localeCompare(b.startDateStr))
+})()
+
+// Which month should "Back to Weeks" return to for a given week?
+// Keeps the current month if the week belongs to it, otherwise picks the first month that does.
+const monthForWeek = (week, preferred) => {
+  const contains = (m) => getWeeksForMonth(m.year, m.month).some(w => w.startDateStr === week.startDateStr)
+  if (preferred && contains(preferred)) return preferred
+  return MONTHS.find(contains) || preferred
+}
+
+// ---------- Swipe settings ----------
+const SWIPE_SNAP = 0.25 // drag at least 25% of the width to change page
+const SWIPE_EDGE = 20   // px: ignore touches starting at the screen edge (iOS back gesture)
+const SWIPE_MS = 200    // slide-out duration
+
+/**
+ * Touch-drag carousel behaviour.
+ * - areaRef    -> the stable wrapper that listens for touches
+ * - contentRef -> the element that follows the finger (re-created for each page)
+ * - canGo(dir)      whether there is a page in that direction ('next' | 'prev')
+ * - confirmGo(dir)  optional: return false to cancel (e.g. unsaved changes)
+ * - onGo(dir)       change the page
+ */
+function useSwipe({ enabled, canGo, confirmGo, onGo }) {
+  const areaRef = useRef(null)
+  const contentRef = useRef(null)
+  const latest = useRef({})
+  latest.current = { canGo, confirmGo, onGo }
+
+  useEffect(() => {
+    const area = areaRef.current
+    if (!enabled || !area) return
+
+    let startX = 0
+    let startY = 0
+    let startT = 0
+    let tracking = false
+    let horizontal = null // null = undecided, then true / false once the direction is locked
+    let busy = false
+    let swallowClick = false
+    let timer = null
+    let clickTimer = null
+
+    const drag = (x) => {
+      const el = contentRef.current
+      if (!el) return
+      el.style.transition = 'none'
+      el.style.transform = `translate3d(${x}px, 0, 0)`
+    }
+
+    const settle = (x, fade) => {
+      const el = contentRef.current
+      if (!el) return
+      el.style.transition = `transform ${SWIPE_MS}ms ease, opacity ${SWIPE_MS}ms ease`
+      el.style.transform = `translate3d(${x}px, 0, 0)`
+      el.style.opacity = fade ? '0' : '1'
+    }
+
+    const onStart = (e) => {
+      if (busy || e.touches.length !== 1 || !contentRef.current) return
+      const t = e.touches[0]
+      if (t.clientX < SWIPE_EDGE || t.clientX > window.innerWidth - SWIPE_EDGE) return
+      startX = t.clientX
+      startY = t.clientY
+      startT = Date.now()
+      tracking = true
+      horizontal = null
+    }
+
+    const onMove = (e) => {
+      if (!tracking) return
+      const t = e.touches[0]
+      const dx = t.clientX - startX
+      const dy = t.clientY - startY
+
+      if (horizontal === null) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
+        horizontal = Math.abs(dx) > Math.abs(dy)
+      }
+      if (!horizontal) return
+
+      if (e.cancelable) e.preventDefault()
+      const dir = dx < 0 ? 'next' : 'prev'
+      // Rubber-band resistance when there is nothing further in that direction
+      drag(latest.current.canGo(dir) ? dx : dx * 0.25)
+    }
+
+    const onEnd = (e) => {
+      if (!tracking) return
+      tracking = false
+      if (!horizontal) return
+
+      // The finger moved sideways, so ignore the click the browser may still fire
+      swallowClick = true
+      clickTimer = setTimeout(() => { swallowClick = false }, 350)
+
+      const dx = e.changedTouches[0].clientX - startX
+      const width = area.offsetWidth
+      const far = Math.abs(dx) > width * SWIPE_SNAP
+      const quick = Date.now() - startT < 250 && Math.abs(dx) > 40
+      const dir = dx < 0 ? 'next' : 'prev'
+      const { canGo, confirmGo, onGo } = latest.current
+
+      const commit = (far || quick) && canGo(dir) && (!confirmGo || confirmGo(dir))
+
+      busy = true
+      if (!commit) {
+        settle(0, false)
+        timer = setTimeout(() => { busy = false }, SWIPE_MS)
+        return
+      }
+
+      settle(dx < 0 ? -width : width, true)
+      timer = setTimeout(() => {
+        onGo(dir)
+        busy = false
+      }, SWIPE_MS)
+    }
+
+    const onCancel = () => {
+      if (tracking && horizontal) settle(0, false)
+      tracking = false
+    }
+
+    const onClickCapture = (e) => {
+      if (swallowClick) {
+        e.stopPropagation()
+        e.preventDefault()
+      }
+    }
+
+    area.addEventListener('touchstart', onStart, { passive: true })
+    area.addEventListener('touchmove', onMove, { passive: false })
+    area.addEventListener('touchend', onEnd, { passive: true })
+    area.addEventListener('touchcancel', onCancel, { passive: true })
+    area.addEventListener('click', onClickCapture, true)
+
+    return () => {
+      area.removeEventListener('touchstart', onStart)
+      area.removeEventListener('touchmove', onMove)
+      area.removeEventListener('touchend', onEnd)
+      area.removeEventListener('touchcancel', onCancel)
+      area.removeEventListener('click', onClickCapture, true)
+      clearTimeout(timer)
+      clearTimeout(clickTimer)
+    }
+  }, [enabled])
+
+  return { areaRef, contentRef }
+}
 
 // ---------- Good / warn / bad thresholds (tweak these to taste) ----------
 // Attendance rate: higher is better
@@ -55,6 +221,12 @@ export default function App() {
   const [allAttendance, setAllAttendance] = useState([])
   const [loading, setLoading] = useState(false)
 
+  // Swipe navigation
+  const [weekSlide, setWeekSlide] = useState(null)   // direction the new week slides in from: 'next' | 'prev' | null
+  const [monthSlide, setMonthSlide] = useState(null) // same, for the month's weeks list
+  const [dirty, setDirty] = useState(false)          // true when the week has unsaved changes
+  const loadRequest = useRef(0)                      // lets us ignore out-of-date responses
+
   // Advanced analytics filters
   const [analyticsScope, setAnalyticsScope] = useState('ALL')
   const [selectedTeacher, setSelectedTeacher] = useState(ALL_TEACHERS)
@@ -89,6 +261,7 @@ export default function App() {
 
   async function loadWeekAttendance(weekStart, studentId) {
     if (!weekStart || !studentId) return
+    const requestId = ++loadRequest.current
     setLoading(true)
 
     const { data } = await supabase
@@ -96,6 +269,9 @@ export default function App() {
       .select('*')
       .eq('week_start', weekStart)
       .eq('student_id', studentId)
+
+    // A newer request has started (e.g. quick swipes), so ignore this older result
+    if (requestId !== loadRequest.current) return
 
     const initial = {}
     // Default all lessons to null so none of P, A, L, or N start pre-selected
@@ -108,6 +284,7 @@ export default function App() {
       })
     }
     setAttendance(initial)
+    setDirty(false)
     setLoading(false)
   }
 
@@ -139,6 +316,7 @@ export default function App() {
     if (error) {
       alert('Error saving: ' + error.message)
     } else {
+      setDirty(false)
       alert('Attendance saved successfully!')
       fetchAllAttendance()
     }
@@ -269,6 +447,58 @@ export default function App() {
     ? 'neutral'
     : latenessTone(100 - parseFloat(summary.punctualityPct))
 
+  // ---------- Swipe navigation: weeks ----------
+  const weekIndex = selectedWeek
+    ? ALL_WEEKS.findIndex(w => w.startDateStr === selectedWeek.startDateStr)
+    : -1
+
+  const canGoWeek = (dir) => (dir === 'next' ? weekIndex < ALL_WEEKS.length - 1 : weekIndex > 0)
+
+  const confirmDiscard = () =>
+    !dirty || window.confirm('You have unsaved changes. Discard them and switch weeks?')
+
+  const goToWeek = (dir) => {
+    const next = ALL_WEEKS[weekIndex + (dir === 'next' ? 1 : -1)]
+    if (!next) return
+    setWeekSlide(dir)
+    setLoading(true) // hide the old week's marks straight away
+    setDirty(false)
+    setSelectedMonth(prev => monthForWeek(next, prev))
+    setSelectedWeek(next)
+  }
+
+  // Used by the arrow buttons (swipes confirm inside the swipe handler)
+  const requestWeek = (dir) => {
+    if (canGoWeek(dir) && confirmDiscard()) goToWeek(dir)
+  }
+
+  // ---------- Swipe navigation: months ----------
+  const monthIndex = selectedMonth
+    ? MONTHS.findIndex(m => m.name === selectedMonth.name)
+    : -1
+
+  const canGoMonth = (dir) => (dir === 'next' ? monthIndex < MONTHS.length - 1 : monthIndex > 0)
+
+  const goToMonth = (dir) => {
+    const next = MONTHS[monthIndex + (dir === 'next' ? 1 : -1)]
+    if (!next) return
+    setMonthSlide(dir)
+    setSelectedMonth(next)
+  }
+
+  const weekSwipe = useSwipe({
+    enabled: view === 'week' && !!selectedWeek,
+    canGo: canGoWeek,
+    confirmGo: confirmDiscard,
+    onGo: goToWeek
+  })
+
+  const monthSwipe = useSwipe({
+    enabled: view === 'month' && !!selectedMonth,
+    canGo: canGoMonth,
+    onGo: goToMonth
+  })
+
   const navigateToHome = () => {
     setSelectedMonth(null)
     setSelectedWeek(null)
@@ -323,7 +553,7 @@ export default function App() {
                 return (
                   <button
                     key={m.name}
-                    onClick={() => { setSelectedMonth(m); setView('month'); }}
+                    onClick={() => { setSelectedMonth(m); setMonthSlide(null); setView('month'); }}
                     className={`month-card ${isCurrent ? 'current-glow' : ''}`}
                   >
                     <span className="month-name">{m.name.split(' ')[0]}</span>
@@ -336,48 +566,93 @@ export default function App() {
           </section>
         )}
 
-        {/* 2. MONTH VIEW: Weeks List */}
+        {/* 2. MONTH VIEW: Weeks List (swipe left / right for next / previous month) */}
         {view === 'month' && selectedMonth && (
           <section className="view">
-            <h2 className="section-title">{selectedMonth.name}</h2>
+            <div className="title-row">
+              <button
+                className="nav-arrow"
+                aria-label="Previous month"
+                disabled={!canGoMonth('prev')}
+                onClick={() => goToMonth('prev')}
+              >
+                &lsaquo;
+              </button>
+              <h2 className="section-title">{selectedMonth.name}</h2>
+              <button
+                className="nav-arrow"
+                aria-label="Next month"
+                disabled={!canGoMonth('next')}
+                onClick={() => goToMonth('next')}
+              >
+                &rsaquo;
+              </button>
+            </div>
             <p className="section-sub">Select a week to log or review attendance:</p>
 
-            <div className="week-list">
-              {getWeeksForMonth(selectedMonth.year, selectedMonth.month).map(w => {
-                const isCurrent = isCurrentWeek(w.startDateStr)
-                return (
-                  <button
-                    key={w.startDateStr}
-                    onClick={() => { setSelectedWeek(w); setView('week'); }}
-                    className={`week-card ${isCurrent ? 'current-glow' : ''}`}
-                  >
-                    <span className="week-card-text">
-                      <span className="week-card-label">
-                        Week Range {isCurrent && <span className="current-inline-badge">• Current Week</span>}
+            <div className="swipe-area tall" ref={monthSwipe.areaRef}>
+              <div
+                key={selectedMonth.name}
+                ref={monthSwipe.contentRef}
+                className={`week-list ${monthSlide ? `slide-in-${monthSlide}` : ''}`}
+                onAnimationEnd={e => { if (e.target === e.currentTarget) setMonthSlide(null) }}
+              >
+                {getWeeksForMonth(selectedMonth.year, selectedMonth.month).map(w => {
+                  const isCurrent = isCurrentWeek(w.startDateStr)
+                  return (
+                    <button
+                      key={w.startDateStr}
+                      onClick={() => { setSelectedWeek(w); setWeekSlide(null); setView('week'); }}
+                      className={`week-card ${isCurrent ? 'current-glow' : ''}`}
+                    >
+                      <span className="week-card-text">
+                        <span className="week-card-label">
+                          Week Range {isCurrent && <span className="current-inline-badge">• Current Week</span>}
+                        </span>
+                        <span className="week-card-value">{w.label}</span>
                       </span>
-                      <span className="week-card-value">{w.label}</span>
-                    </span>
-                    <span className="week-card-arrow">&rarr;</span>
-                  </button>
-                )
-              })}
+                      <span className="week-card-arrow">&rarr;</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </section>
         )}
 
-        {/* 3. WEEK VIEW */}
+        {/* 3. WEEK VIEW (swipe left / right for next / previous week) */}
         {view === 'week' && selectedWeek && (
           <section className="view">
             <div className="week-header">
-              <div className="week-header-range">
-                <span className="week-header-eyebrow">Week Range</span>
-                <h2 className="week-header-title">{selectedWeek.label}</h2>
+              <div className="week-header-top">
+                <button
+                  className="nav-arrow"
+                  aria-label="Previous week"
+                  disabled={!canGoWeek('prev')}
+                  onClick={() => requestWeek('prev')}
+                >
+                  &lsaquo;
+                </button>
+                <div className="week-header-range">
+                  <span className="week-header-eyebrow">
+                    Week Range {isCurrentWeek(selectedWeek.startDateStr) && <span className="current-inline-badge">• Current Week</span>}
+                  </span>
+                  <h2 className="week-header-title">{selectedWeek.label}</h2>
+                </div>
+                <button
+                  className="nav-arrow"
+                  aria-label="Next week"
+                  disabled={!canGoWeek('next')}
+                  onClick={() => requestWeek('next')}
+                >
+                  &rsaquo;
+                </button>
               </div>
               <div className="week-header-select">
                 <label className="select-label">Select Student</label>
                 <select
                   value={selectedStudentId}
-                  onChange={e => setSelectedStudentId(e.target.value)}
+                  onChange={e => { setWeekSlide(null); setSelectedStudentId(e.target.value) }}
                   className="select"
                 >
                   {students.map(s => (
@@ -387,11 +662,19 @@ export default function App() {
               </div>
             </div>
 
-            {loading ? (
-              <div className="loading">Loading attendance records...</div>
-            ) : (
-              <>
-                <div className="lesson-grid">
+            <div className="swipe-area" ref={weekSwipe.areaRef}>
+              {loading ? (
+                <div className="loading" role="status">
+                  <span className="spinner" aria-hidden="true" />
+                  <span className="sr-only">Loading attendance records...</span>
+                </div>
+              ) : (
+                <div
+                  key={selectedWeek.startDateStr}
+                  ref={weekSwipe.contentRef}
+                  className={`lesson-grid ${weekSlide ? `slide-in-${weekSlide}` : ''}`}
+                  onAnimationEnd={e => { if (e.target === e.currentTarget) setWeekSlide(null) }}
+                >
                   {LESSONS.map(lesson => {
                     const isFuture = isFutureLesson(selectedWeek?.startDateStr, lesson.day)
 
@@ -417,7 +700,10 @@ export default function App() {
                             ].map(opt => (
                               <button
                                 key={opt.value}
-                                onClick={() => setAttendance(prev => ({ ...prev, [lesson.id]: opt.value }))}
+                                onClick={() => {
+                                  setAttendance(prev => ({ ...prev, [lesson.id]: opt.value }))
+                                  setDirty(true)
+                                }}
                                 title={opt.title}
                                 className={`status-btn ${attendance[lesson.id] === opt.value ? `selected s-${opt.value}` : ''}`}
                               >
@@ -430,11 +716,13 @@ export default function App() {
                     )
                   })}
                 </div>
+              )}
+            </div>
 
-                <button onClick={handleSaveAttendance} className="submit-btn">
-                  Save Attendance Record
-                </button>
-              </>
+            {!loading && (
+              <button onClick={handleSaveAttendance} className="submit-btn">
+                Save Attendance Record
+              </button>
             )}
           </section>
         )}
