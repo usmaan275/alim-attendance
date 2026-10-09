@@ -465,7 +465,7 @@ export default function App() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Roll No</th>
+                    <th>No.</th>
                     <th>Student Name</th>
                     <th>Attended</th>
                     <th>Total</th>
@@ -508,7 +508,7 @@ export default function App() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Roll No</th>
+                    <th>No.</th>
                     <th>Student Name</th>
                     <th>Late</th>
                     <th>Attended</th>
