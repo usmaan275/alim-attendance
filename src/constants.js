@@ -28,6 +28,9 @@ export const MONTHS = [
   { name: 'August 2027', year: 2027, month: 7 }
 ]
 
+export const TEACHERS = ['All', 'Ml Abubkr', 'Ml Raqib', 'Mufti Zubair']
+export const DAYS = ['All', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
 function toLocalDateStr(date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -37,7 +40,6 @@ function toLocalDateStr(date) {
 
 export function getWeeksForMonth(year, monthIndex) {
   const weeks = []
-  
   const firstOfMonth = new Date(year, monthIndex, 1)
   const day = firstOfMonth.getDay()
   const diff = firstOfMonth.getDate() - day + (day === 0 ? -6 : 1)
@@ -48,7 +50,6 @@ export function getWeeksForMonth(year, monthIndex) {
     const sun = new Date(currentMonday)
     sun.setDate(sun.getDate() + 6)
 
-    // A week belongs to this month if Monday OR Sunday is inside the month
     const belongsToMonth = 
       (mon.getFullYear() === year && mon.getMonth() === monthIndex) ||
       (sun.getFullYear() === year && sun.getMonth() === monthIndex)
@@ -72,13 +73,8 @@ export function getFormattedLessonDate(weekStartStr, dayName) {
   if (!weekStartStr) return dayName
 
   const dayOffsets = {
-    'Monday': 0,
-    'Tuesday': 1,
-    'Wednesday': 2,
-    'Thursday': 3,
-    'Friday': 4,
-    'Saturday': 5,
-    'Sunday': 6
+    'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
+    'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6
   }
 
   const offset = dayOffsets[dayName] ?? 0
@@ -101,25 +97,15 @@ export function getFormattedLessonDate(weekStartStr, dayName) {
 
 export function isFutureLesson(weekStartStr, dayName) {
   if (!weekStartStr) return false
-
   const dayOffsets = {
-    'Monday': 0,
-    'Tuesday': 1,
-    'Wednesday': 2,
-    'Thursday': 3,
-    'Friday': 4,
-    'Saturday': 5,
-    'Sunday': 6
+    'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
+    'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6
   }
-
   const offset = dayOffsets[dayName] ?? 0
   const [year, month, day] = weekStartStr.split('-').map(Number)
   const lessonDate = new Date(year, month - 1, day + offset)
-
-  // Get current date at local midnight for accurate comparison
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
   return lessonDate > today
 }
 
@@ -131,8 +117,6 @@ export function isCurrentMonth(year, monthIndex) {
 export function isCurrentWeek(weekStartStr) {
   if (!weekStartStr) return false
   const today = new Date()
-  
-  // Calculate Monday of the current week
   const day = today.getDay()
   const diff = today.getDate() - day + (day === 0 ? -6 : 1)
   const currentMonday = new Date(today.setDate(diff))
@@ -140,7 +124,5 @@ export function isCurrentWeek(weekStartStr) {
   const y = currentMonday.getFullYear()
   const m = String(currentMonday.getMonth() + 1).padStart(2, '0')
   const d = String(currentMonday.getDate()).padStart(2, '0')
-  const currentMondayStr = `${y}-${m}-${d}`
-
-  return weekStartStr === currentMondayStr
+  return weekStartStr === `${y}-${m}-${d}`
 }

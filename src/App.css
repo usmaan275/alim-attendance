@@ -20,6 +20,11 @@
   --warn: #fbbf24;
   --none: #94a3b8;
 
+  /* tinted backgrounds for good / warn / bad badges */
+  --good-soft: rgba(74, 222, 128, 0.14);
+  --warn-soft: rgba(251, 191, 36, 0.14);
+  --bad-soft: rgba(248, 113, 113, 0.14);
+
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg);
@@ -153,12 +158,29 @@
   text-overflow: ellipsis;
 }
 
+/* second section heading on the same page (e.g. lateness table) */
+.section-title.spaced { margin-top: 2.2em; }
+
 .section-sub {
   margin: -0.5em 0 1.1em;
   min-height: 2.6em;
   line-height: 1.3;
   font-size: 0.9em;
   color: var(--muted);
+}
+
+/* smaller heading inside a page (e.g. Monthly Breakdown) */
+.section-subtitle {
+  margin: 1.8em 0 0.8em;
+  height: 1.4em;
+  line-height: 1.4;
+  font-size: 1.05em;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Home: months, 3 columns x 4 rows ---------- */
@@ -386,6 +408,26 @@
 .status-btn.s-L { background: var(--warn); box-shadow: 0 0 14px rgba(251, 191, 36, 0.25); }
 .status-btn.s-N { background: var(--none); box-shadow: 0 0 14px rgba(148, 163, 184, 0.2); }
 
+/* Future lessons: dimmed, dashed, same height as the P/A/L/N row so cards stay aligned */
+.lesson-card.disabled {
+  opacity: 0.7;
+  background: transparent;
+  border-style: dashed;
+}
+
+.future-tag {
+  display: grid;
+  place-items: center;
+  height: 2.95em; /* matches .status-btn: 2.5em at 0.85em font = 2.125em of the card */
+  border: 1px dashed var(--line);
+  border-radius: 0.9em;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .loading {
   display: flex;
   align-items: center;
@@ -412,7 +454,7 @@
 }
 .submit-btn:active { transform: scale(0.985); filter: brightness(0.92); }
 
-/* ---------- Stats table ---------- */
+/* ---------- Stats tables ---------- */
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -451,7 +493,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.attended { line-height: 1.25; font-size: 0.8em; }
+
+/* numeric columns in both tables look the same */
+.table td.attended,
+.table td.total,
+.table td.num {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
 
 .roll-badge {
   display: inline-block;
@@ -463,6 +513,7 @@
   font-weight: 700;
 }
 
+/* Rate badges: good / warn / bad (low) / neutral (N/A) */
 .pct-badge {
   display: inline-block;
   padding: 0.3em 0.65em;
@@ -471,8 +522,182 @@
   font-weight: 700;
   white-space: nowrap;
 }
-.pct-badge.good { background: rgba(74, 222, 128, 0.14); color: var(--good); }
-.pct-badge.low  { background: rgba(248, 113, 113, 0.14); color: var(--bad); }
+.pct-badge.good    { background: var(--good-soft); color: var(--good); }
+.pct-badge.warn    { background: var(--warn-soft); color: var(--warn); }
+.pct-badge.low     { background: var(--bad-soft);  color: var(--bad); }
+.pct-badge.neutral { background: var(--surface-2); color: var(--muted); }
+
+/* ---------- Stats: advanced analytics button ---------- */
+.advanced-analytics-btn {
+  display: block;
+  width: 100%;
+  height: 3.4em;
+  margin-top: 1.75em;
+  padding: 0 1em;
+  border: 1px solid var(--accent-line);
+  border-radius: 1em;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 1em;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+.advanced-analytics-btn:active { transform: scale(0.985); background: rgba(192, 132, 252, 0.22); }
+
+/* ---------- Advanced analytics: filters ---------- */
+.filter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+  padding: 1em;
+  margin-bottom: 1em;
+  border: 1px solid var(--line);
+  border-radius: 1em;
+  background: var(--surface);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  min-width: 0;
+}
+
+.filter-label {
+  display: block;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+/* ---------- Advanced analytics: summary cards (2 x 2) ---------- */
+.stats-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7em;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.9em;
+  border: 1px solid var(--line);
+  border-radius: 1em;
+  background: var(--surface);
+}
+
+/* title and sub-label reserve two lines so values line up across cards */
+.summary-title {
+  height: 2.4em;
+  font-size: 0.78em;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.summary-value {
+  height: 1.2em;
+  margin: 0.15em 0 0.3em;
+  font-size: 1.4em;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summary-sub {
+  height: 2.4em;
+  font-size: 0.72em;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+/* tone colours shared by summary values and monthly rates */
+.summary-value.good, .rate-num.good { color: var(--good); }
+.summary-value.warn, .rate-num.warn { color: var(--warn); }
+.summary-value.low,  .rate-num.low  { color: var(--bad); }
+.summary-value.neutral, .rate-num.neutral { color: var(--ink); }
+
+/* ---------- Advanced analytics: monthly breakdown (3 columns x 4 rows) ---------- */
+.month-grid.analytics-month-grid {
+  grid-template-rows: none;
+  grid-auto-rows: auto;
+}
+
+.analytics-month-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7em;
+  min-width: 0;
+  padding: 0.8em 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 1em;
+  background: var(--surface);
+}
+
+.analytics-month-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2em;
+  width: 100%;
+  padding-bottom: 0.7em;
+  border-bottom: 1px solid var(--line);
+}
+
+.analytics-month-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7em;
+  width: 100%;
+}
+
+.month-rate-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.rate-num {
+  font-size: 1.2em;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.rate-lbl {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.month-mini-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  width: 100%;
+}
+
+.stat-pill {
+  padding: 0.25em 0;
+  border-radius: 0.5em;
+  text-align: center;
+  font-size: 0.72em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.p-bg { background: var(--good-soft); color: var(--good); }
+.l-bg { background: var(--warn-soft); color: var(--warn); }
+.a-bg { background: var(--bad-soft);  color: var(--bad); }
 
 /* ---------- Larger screens: same layout, just more breathing room ---------- */
 @media (min-width: 700px) {
@@ -484,25 +709,10 @@
   .back-btn:hover { background: var(--accent-soft); border-color: var(--accent-line); }
   .tab:not(.active):hover { color: var(--ink); }
   .submit-btn:hover { filter: brightness(1.08); }
+  .advanced-analytics-btn:hover { background: rgba(192, 132, 252, 0.22); }
   .status-btn:not(.selected):hover { border-color: var(--accent-line); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .shell * { transition: none !important; }
-}
-
-.lesson-card.disabled {
-  opacity: 0.6;
-  background-color: #cfd1d3;
-  border-style: dashed;
-}
-
-.future-tag {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #94a3b8;
-  text-align: center;
-  padding: 8px 0;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }

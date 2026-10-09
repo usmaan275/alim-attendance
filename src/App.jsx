@@ -3,8 +3,50 @@ import { supabase } from './supabaseClient'
 import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate, isFutureLesson, isCurrentMonth, isCurrentWeek } from './constants'
 import './App.css'
 
+// ---------- Advanced analytics filter options (derived from LESSONS) ----------
+const ALL_TEACHERS = 'All Teachers'
+const ALL_DAYS = 'All Days'
+const TEACHERS = [ALL_TEACHERS, ...new Set(LESSONS.map(l => l.teacher))]
+const DAYS = [ALL_DAYS, ...new Set(LESSONS.map(l => l.day))]
+const LESSON_BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]))
+
+// ---------- Good / warn / bad thresholds (tweak these to taste) ----------
+// Attendance rate: higher is better
+const ATTENDANCE_GOOD = 70 // >= 70%  -> good
+const ATTENDANCE_WARN = 50 // >= 50%  -> warn, below -> bad
+// Lateness rate: lower is better
+const LATENESS_GOOD = 20 // <= 20%  -> good
+const LATENESS_WARN = 40 // <= 40%  -> warn, above -> bad
+
+const attendanceTone = (pct) => {
+  if (pct === 'N/A') return 'neutral'
+  const n = parseFloat(pct)
+  if (n >= ATTENDANCE_GOOD) return 'good'
+  if (n >= ATTENDANCE_WARN) return 'warn'
+  return 'low'
+}
+
+const latenessTone = (pct) => {
+  if (pct === 'N/A') return 'neutral'
+  const n = parseFloat(pct)
+  if (n <= LATENESS_GOOD) return 'good'
+  if (n <= LATENESS_WARN) return 'warn'
+  return 'low'
+}
+
+// Counts P / L / A records and works out the attendance rate
+const tally = (records) => {
+  const present = records.filter(a => a.status === 'P').length
+  const late = records.filter(a => a.status === 'L').length
+  const absent = records.filter(a => a.status === 'A').length
+  const total = present + late + absent
+  const attended = present + late
+  const pct = total > 0 ? ((attended / total) * 100).toFixed(1) : 'N/A'
+  return { present, late, absent, total, attended, pct }
+}
+
 export default function App() {
-  const [view, setView] = useState('home') // 'home' | 'month' | 'week' | 'stats'
+  const [view, setView] = useState('home') // 'home' | 'month' | 'week' | 'stats' | 'advanced_stats'
   const [selectedMonth, setSelectedMonth] = useState(null)
   const [selectedWeek, setSelectedWeek] = useState(null)
   const [students, setStudents] = useState([])
@@ -12,6 +54,11 @@ export default function App() {
   const [attendance, setAttendance] = useState({})
   const [allAttendance, setAllAttendance] = useState([])
   const [loading, setLoading] = useState(false)
+
+  // Advanced analytics filters
+  const [analyticsScope, setAnalyticsScope] = useState('ALL')
+  const [selectedTeacher, setSelectedTeacher] = useState(ALL_TEACHERS)
+  const [selectedDay, setSelectedDay] = useState(ALL_DAYS)
 
   useEffect(() => {
     fetchStudents()
@@ -118,7 +165,7 @@ export default function App() {
         denominator,
         pct
       }
-    })
+    }).sort((a, b) => b.presentCount - a.presentCount)
   }
 
   const calculateLatenessStats = () => {
@@ -153,6 +200,60 @@ export default function App() {
       })
   }
 
+  // ---------- Advanced analytics ----------
+  // Marked (P / A / L) records that match the scope, teacher and day filters
+  const getFilteredRecords = () =>
+    allAttendance.filter(a => {
+      if (!['P', 'A', 'L'].includes(a.status)) return false
+      if (analyticsScope !== 'ALL' && String(a.student_id) !== String(analyticsScope)) return false
+
+      const lesson = LESSON_BY_ID[a.lesson_key]
+      if (!lesson) return false
+      if (selectedTeacher !== ALL_TEACHERS && lesson.teacher !== selectedTeacher) return false
+      if (selectedDay !== ALL_DAYS && lesson.day !== selectedDay) return false
+      return true
+    })
+
+  const filteredRecords = view === 'advanced_stats' ? getFilteredRecords() : []
+
+  const buildSummary = () => {
+    const overall = tally(filteredRecords)
+
+    const punctualityPct = overall.attended > 0
+      ? ((overall.present / overall.attended) * 100).toFixed(1)
+      : 'N/A'
+
+    // Day of the week with the most absences
+    const absencesByDay = {}
+    filteredRecords
+      .filter(a => a.status === 'A')
+      .forEach(a => {
+        const day = LESSON_BY_ID[a.lesson_key].day
+        absencesByDay[day] = (absencesByDay[day] || 0) + 1
+      })
+    const ranked = Object.entries(absencesByDay).sort((a, b) => b[1] - a[1])
+    const mostMissedDay = ranked.length > 0 ? ranked[0][0] : 'N/A'
+
+    return {
+      overallPct: overall.pct,
+      punctualityPct,
+      mostMissedDay,
+      totalRecorded: overall.total
+    }
+  }
+
+  const summary = buildSummary()
+
+  // Monthly breakdown: uses the weeks that belong to each month
+  const getMonthAnalytics = (year, month) => {
+    const weekStarts = new Set(getWeeksForMonth(year, month).map(w => w.startDateStr))
+    return tally(filteredRecords.filter(a => weekStarts.has(a.week_start)))
+  }
+
+  const punctualityTone = summary.punctualityPct === 'N/A'
+    ? 'neutral'
+    : latenessTone(100 - parseFloat(summary.punctualityPct))
+
   const navigateToHome = () => {
     setSelectedMonth(null)
     setSelectedWeek(null)
@@ -162,7 +263,7 @@ export default function App() {
   const back =
     view === 'month' ? { action: navigateToHome, label: 'Back to Months' } :
       view === 'week' ? { action: () => setView('month'), label: 'Back to Weeks' } :
-        view === 'stats' ? { action: navigateToHome, label: 'Back to Dashboard' } :
+        view === 'advanced_stats' ? { action: () => setView('stats'), label: 'Back to Analytics' } :
           null
 
   return (
@@ -190,7 +291,7 @@ export default function App() {
             </button>
             <button
               onClick={() => { fetchAllAttendance(); setView('stats'); }}
-              className={`tab ${view === 'stats' ? 'active' : ''}`}
+              className={`tab ${view === 'stats' || view === 'advanced_stats' ? 'active' : ''}`}
             >
               Analytics &amp; Stats
             </button>
@@ -249,6 +350,7 @@ export default function App() {
           </section>
         )}
 
+        {/* 3. WEEK VIEW */}
         {view === 'week' && selectedWeek && (
           <section className="view">
             <div className="week-header">
@@ -322,6 +424,7 @@ export default function App() {
           </section>
         )}
 
+        {/* 4. STATS VIEW */}
         {view === 'stats' && (
           <section className="view">
             <h2 className="section-title">Class Attendance Overview</h2>
@@ -332,11 +435,11 @@ export default function App() {
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '35%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '28%' }} />
                   <col style={{ width: '16%' }} />
                   <col style={{ width: '16%' }} />
-                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '24%' }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -355,7 +458,7 @@ export default function App() {
                       <td className="attended">{s.presentCount}</td>
                       <td className="total">{s.denominator}</td>
                       <td>
-                        <span className={`pct-badge ${s.pct === 'N/A' ? 'neutral' : parseFloat(s.pct) >= 70 ? 'good' : 'low'}`}>
+                        <span className={`pct-badge ${attendanceTone(s.pct)}`}>
                           {s.pct}{s.pct !== 'N/A' && '%'}
                         </span>
                       </td>
@@ -365,7 +468,7 @@ export default function App() {
               </table>
             </div>
 
-            <h2 className="section-title" style={{ marginTop: '40px' }}>
+            <h2 className="section-title spaced">
               Class Lateness Overview
             </h2>
             <p className="section-sub">
@@ -375,11 +478,11 @@ export default function App() {
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '35%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '28%' }} />
                   <col style={{ width: '16%' }} />
                   <col style={{ width: '16%' }} />
-                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '24%' }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -399,17 +502,10 @@ export default function App() {
                       <td className="student-name">
                         <span>{s.name}</span>
                       </td>
-                      <td>{s.lateCount}</td>
-                      <td>{s.attendedCount}</td>
+                      <td className="num">{s.lateCount}</td>
+                      <td className="num">{s.attendedCount}</td>
                       <td>
-                        <span
-                          className={`pct-badge ${s.pct === 'N/A'
-                            ? 'neutral'
-                            : parseFloat(s.pct) <= 20
-                              ? 'good'
-                              : 'low'
-                            }`}
-                        >
+                        <span className={`pct-badge ${latenessTone(s.pct)}`}>
                           {s.pct}{s.pct !== 'N/A' && '%'}
                         </span>
                       </td>
@@ -417,6 +513,133 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Action Button at the Bottom */}
+            <button
+              onClick={() => setView('advanced_stats')}
+              className="advanced-analytics-btn"
+            >
+              Deep Insights &amp; Advanced Filters &rarr;
+            </button>
+          </section>
+        )}
+
+        {/* 5. ADVANCED HYBRID ANALYTICS PAGE */}
+        {view === 'advanced_stats' && (
+          <section className="view">
+            <div className="analytics-top">
+              <div>
+                <h2 className="section-title">Advanced Performance Analytics</h2>
+                <p className="section-sub">Filter attendance insights by student, teacher, or day of the week.</p>
+              </div>
+            </div>
+
+            {/* Filter Controls Bar */}
+            <div className="filter-card">
+              <div className="filter-group">
+                <label className="filter-label">Scope</label>
+                <select
+                  value={analyticsScope}
+                  onChange={e => setAnalyticsScope(e.target.value)}
+                  className="select"
+                >
+                  <option value="ALL">Whole Class (All Students)</option>
+                  {students.map(s => (
+                    <option key={s.id} value={s.id}>#{s.roll_no} — {s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Filter by Teacher</label>
+                <select
+                  value={selectedTeacher}
+                  onChange={e => setSelectedTeacher(e.target.value)}
+                  className="select"
+                >
+                  {TEACHERS.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Filter by Day</label>
+                <select
+                  value={selectedDay}
+                  onChange={e => setSelectedDay(e.target.value)}
+                  className="select"
+                >
+                  {DAYS.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 4 Stat Summary Cards */}
+            <div className="stats-summary-grid">
+              <div className="summary-card">
+                <span className="summary-title">Attendance Rate</span>
+                <span className={`summary-value ${attendanceTone(summary.overallPct)}`}>
+                  {summary.overallPct}{summary.overallPct !== 'N/A' && '%'}
+                </span>
+                <span className="summary-sub">Present or Late vs Total</span>
+              </div>
+
+              <div className="summary-card">
+                <span className="summary-title">Punctuality Score</span>
+                <span className={`summary-value ${punctualityTone}`}>
+                  {summary.punctualityPct}{summary.punctualityPct !== 'N/A' && '%'}
+                </span>
+                <span className="summary-sub">On-time vs Late arrivals</span>
+              </div>
+
+              <div className="summary-card">
+                <span className="summary-title">Most Missed Day</span>
+                <span className={`summary-value ${summary.mostMissedDay === 'N/A' ? 'neutral' : 'warn'}`}>
+                  {summary.mostMissedDay}
+                </span>
+                <span className="summary-sub">Highest absence frequency</span>
+              </div>
+
+              <div className="summary-card">
+                <span className="summary-title">Total Lessons Evaluated</span>
+                <span className="summary-value neutral">{summary.totalRecorded}</span>
+                <span className="summary-sub">Recorded marked entries</span>
+              </div>
+            </div>
+
+            {/* Monthly Grid 3x4 */}
+            <h3 className="section-subtitle">Monthly Breakdown</h3>
+            <div className="month-grid analytics-month-grid">
+              {MONTHS.map(m => {
+                const monthStats = getMonthAnalytics(m.year, m.month)
+                return (
+                  <div key={m.name} className="analytics-month-card">
+                    <div className="analytics-month-header">
+                      <span className="month-name">{m.name.split(' ')[0]}</span>
+                      <span className="month-year">{m.name.split(' ')[1]}</span>
+                    </div>
+
+                    <div className="analytics-month-body">
+                      <div className="month-rate-badge">
+                        <span className={`rate-num ${attendanceTone(monthStats.pct)}`}>
+                          {monthStats.pct}{monthStats.pct !== 'N/A' && '%'}
+                        </span>
+                        <span className="rate-lbl">Rate</span>
+                      </div>
+
+                      <div className="month-mini-stats">
+                        <div className="stat-pill p-bg">P: {monthStats.present}</div>
+                        <div className="stat-pill l-bg">L: {monthStats.late}</div>
+                        <div className="stat-pill a-bg">A: {monthStats.absent}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </section>
         )}
