@@ -411,8 +411,8 @@ export default function App() {
                           <div className="status-row">
                             {[
                               { label: 'P', value: 'P', title: 'Present' },
-                              { label: 'A', value: 'A', title: 'Absent' },
                               { label: 'L', value: 'L', title: 'Late' },
+                              { label: 'A', value: 'A', title: 'Absent' },
                               { label: 'N', value: 'N', title: 'No Class' }
                             ].map(opt => (
                               <button
@@ -451,7 +451,7 @@ export default function App() {
             </button>
             <h2 className="section-title">Class Attendance Overview</h2>
             <p className="section-sub">
-              Statistics are based on all marked sessions across the term. Attendance rate is calculated as attened lessons (presents + lates) divided by total marked sessions.
+              Statistics are based on all marked sessions across the term. Attendance rate is calculated as attended lessons (presents + lates) divided by total marked sessions.
             </p>
 
             <div className="table-wrap">
