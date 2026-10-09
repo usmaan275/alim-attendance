@@ -552,13 +552,13 @@ export default function App() {
             {/* Filter Controls Bar */}
             <div className="filter-card">
               <div className="filter-group">
-                <label className="filter-label">Scope</label>
+                <label className="filter-label">Filter by Student</label>
                 <select
                   value={analyticsScope}
                   onChange={e => setAnalyticsScope(e.target.value)}
                   className="select"
                 >
-                  <option value="ALL">Whole Class (All Students)</option>
+                  <option value="ALL">All Students</option>
                   {students.map(s => (
                     <option key={s.id} value={s.id}>#{s.roll_no} — {s.name}</option>
                   ))}
