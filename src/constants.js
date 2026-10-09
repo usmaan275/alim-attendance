@@ -126,3 +126,14 @@ export function isCurrentWeek(weekStartStr) {
   const d = String(currentMonday.getDate()).padStart(2, '0')
   return weekStartStr === `${y}-${m}-${d}`
 }
+
+export function getLessonDateObj(weekStartStr, dayName) {
+  if (!weekStartStr) return null
+  const dayOffsets = {
+    'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
+    'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6
+  }
+  const offset = dayOffsets[dayName] ?? 0
+  const [year, month, day] = weekStartStr.split('-').map(Number)
+  return new Date(year, month - 1, day + offset)
+}

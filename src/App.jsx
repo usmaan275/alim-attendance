@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate, isFutureLesson, isCurrentMonth, isCurrentWeek } from './constants'
+import { LESSONS, MONTHS, getWeeksForMonth, getFormattedLessonDate, isFutureLesson, isCurrentMonth, isCurrentWeek, getLessonDateObj } from './constants'
 import './App.css'
 
 // ---------- Advanced analytics filter options (derived from LESSONS) ----------
@@ -244,10 +244,25 @@ export default function App() {
 
   const summary = buildSummary()
 
-  // Monthly breakdown: uses the weeks that belong to each month
-  const getMonthAnalytics = (year, month) => {
-    const weekStarts = new Set(getWeeksForMonth(year, month).map(w => w.startDateStr))
-    return tally(filteredRecords.filter(a => weekStarts.has(a.week_start)))
+  // Monthly breakdown: checks exact date of each lesson record
+  const getMonthAnalytics = (year, monthIndex) => {
+    const monthRecords = filteredRecords.filter(a => {
+      const lesson = LESSON_BY_ID[a.lesson_key]
+      if (!lesson) return false
+
+      const dateObj = getLessonDateObj(a.week_start, lesson.day)
+      if (!dateObj) return false
+
+      // Matches exact year and month of the lesson itself
+      return dateObj.getFullYear() === year && dateObj.getMonth() === monthIndex
+    })
+
+    const stats = tally(monthRecords)
+    return {
+      ...stats,
+      // Total lessons evaluated for this exact month
+      total: monthRecords.length
+    }
   }
 
   const punctualityTone = summary.punctualityPct === 'N/A'
@@ -427,6 +442,13 @@ export default function App() {
         {/* 4. STATS VIEW */}
         {view === 'stats' && (
           <section className="view">
+            {/* Action Button at the Bottom */}
+            <button
+              onClick={() => setView('advanced_stats')}
+              className="advanced-analytics-btn"
+            >
+              Deep Insights &amp; Advanced Filters &rarr;
+            </button>
             <h2 className="section-title">Class Attendance Overview</h2>
             <p className="section-sub">
               Statistics are based on all marked sessions across the term. Attendance rate is calculated as attened lessons (presents + lates) divided by total marked sessions.
@@ -435,11 +457,11 @@ export default function App() {
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '24%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '34%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '22%' }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -478,11 +500,11 @@ export default function App() {
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '24%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '34%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '22%' }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -514,14 +536,6 @@ export default function App() {
                 </tbody>
               </table>
             </div>
-
-            {/* Action Button at the Bottom */}
-            <button
-              onClick={() => setView('advanced_stats')}
-              className="advanced-analytics-btn"
-            >
-              Deep Insights &amp; Advanced Filters &rarr;
-            </button>
           </section>
         )}
 
@@ -632,6 +646,7 @@ export default function App() {
                       </div>
 
                       <div className="month-mini-stats">
+                        <div className="stat-pill t-bg">T: {monthStats.total}</div>
                         <div className="stat-pill p-bg">P: {monthStats.present}</div>
                         <div className="stat-pill l-bg">L: {monthStats.late}</div>
                         <div className="stat-pill a-bg">A: {monthStats.absent}</div>
