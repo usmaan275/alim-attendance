@@ -270,7 +270,7 @@
   position: absolute;
   bottom: 0.7em;
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.7em;
   font-weight: 700;
   color: var(--accent);
   text-transform: uppercase;
@@ -281,7 +281,6 @@
 .current-inline-badge {
   color: var(--accent);
   font-weight: 700;
-  font-size: 0.75rem;
   margin-left: 0.08em;
 }
 
