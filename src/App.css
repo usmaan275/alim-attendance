@@ -281,7 +281,7 @@
 .current-inline-badge {
   color: var(--accent);
   font-weight: 700;
-  margin-left: 0.08em;
+  margin-left: 0.05em;
 }
 
 .select-label { display: block; height: 1.2em; margin-bottom: 0.35em; font-size: 0.8em; color: var(--muted); }
