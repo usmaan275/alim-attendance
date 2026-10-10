@@ -11,6 +11,9 @@ const TEACHERS = [ALL_TEACHERS, ...new Set(LESSONS.map(l => l.teacher))]
 const DAYS = [ALL_DAYS, ...new Set(LESSONS.map(l => l.day))]
 const LESSON_BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]))
 
+// ---------- Hidden admin page: reached only by typing /admin into the address bar ----------
+const isAdmin = window.location.pathname.replace(/\/+$/, '') === '/admin'
+
 // ---------- Every week of the term in order (used for swiping between weeks) ----------
 // A week that touches two months is listed once.
 const ALL_WEEKS = (() => {
@@ -227,6 +230,10 @@ export default function App() {
   const [dirty, setDirty] = useState(false)          // true when the week has unsaved changes
   const loadRequest = useRef(0)                      // lets us ignore out-of-date responses
 
+  // Admin page: this week's rows for every student, and which lessons are ticked as No Class
+  const [adminRows, setAdminRows] = useState([])
+  const [adminNo, setAdminNo] = useState({})
+
   // Advanced analytics filters
   const [analyticsScope, setAnalyticsScope] = useState('ALL')
   const [selectedTeacher, setSelectedTeacher] = useState(ALL_TEACHERS)
@@ -239,10 +246,17 @@ export default function App() {
 
   // Re-load attendance automatically whenever selected student or week changes
   useEffect(() => {
-    if (view === 'week' && selectedWeek && selectedStudentId) {
+    if (!isAdmin && view === 'week' && selectedWeek && selectedStudentId) {
       loadWeekAttendance(selectedWeek.startDateStr, selectedStudentId)
     }
   }, [selectedStudentId, selectedWeek, view])
+
+  // Admin: load the whole class's rows for the week (needs the student list first)
+  useEffect(() => {
+    if (isAdmin && view === 'week' && selectedWeek && students.length > 0) {
+      loadAdminWeek(selectedWeek.startDateStr)
+    }
+  }, [selectedWeek, view, students])
 
   async function fetchStudents() {
     const { data } = await supabase.from('students').select('*').order('roll_no')
@@ -288,6 +302,36 @@ export default function App() {
     setLoading(false)
   }
 
+  // A lesson counts as No Class for the admin when every student has an N row for it
+  const isCancelledForClass = (rows, lessonId) =>
+    students.length > 0 &&
+    students.every(s => rows.some(r =>
+      String(r.student_id) === String(s.id) && r.lesson_key === lessonId && r.status === 'N'
+    ))
+
+  async function loadAdminWeek(weekStart) {
+    if (!weekStart) return
+    const requestId = ++loadRequest.current
+    setLoading(true)
+
+    const { data } = await supabase
+      .from('attendance')
+      .select('student_id, lesson_key, status')
+      .eq('week_start', weekStart)
+
+    // Ignore out-of-date responses (e.g. quick swipes)
+    if (requestId !== loadRequest.current) return
+
+    const rows = data || []
+    const marked = {}
+    LESSONS.forEach(l => { marked[l.id] = isCancelledForClass(rows, l.id) })
+
+    setAdminRows(rows)
+    setAdminNo(marked)
+    setDirty(false)
+    setLoading(false)
+  }
+
   const handleSaveAttendance = async () => {
     if (!selectedStudentId || !selectedWeek) return
 
@@ -320,6 +364,73 @@ export default function App() {
       alert('Attendance saved successfully!')
       fetchAllAttendance()
     }
+  }
+
+  // Admin save: newly ticked lessons get N for every student, un-ticked ones lose their N rows
+  const handleSaveNoClass = async () => {
+    if (!selectedWeek) return
+    const weekStart = selectedWeek.startDateStr
+
+    const newlyCancelled = LESSONS.filter(l => adminNo[l.id] && !isCancelledForClass(adminRows, l.id))
+    const restored = LESSONS.filter(l => !adminNo[l.id] && isCancelledForClass(adminRows, l.id))
+
+    if (newlyCancelled.length === 0 && restored.length === 0) {
+      alert('No changes to save.')
+      return
+    }
+
+    // Warn if marking No Class would replace existing P / L / A marks
+    const newIds = new Set(newlyCancelled.map(l => l.id))
+    const affected = adminRows.filter(r => newIds.has(r.lesson_key) && ['P', 'A', 'L'].includes(r.status))
+    if (affected.length > 0) {
+      const studentCount = new Set(affected.map(r => String(r.student_id))).size
+      const ok = window.confirm(
+        `${studentCount} ${studentCount === 1 ? 'student has' : 'students have'} attendance recorded for the lessons you are marking as No Class. Saving will replace their P, L or A marks. Continue?`
+      )
+      if (!ok) return
+    }
+
+    setLoading(true)
+    let error = null
+
+    if (newlyCancelled.length > 0) {
+      const rows = students.flatMap(s =>
+        newlyCancelled.map(l => ({
+          student_id: s.id,
+          week_start: weekStart,
+          lesson_key: l.id,
+          status: 'N'
+        }))
+      )
+      const res = await supabase
+        .from('attendance')
+        .upsert(rows, { onConflict: 'student_id,week_start,lesson_key' })
+      error = res.error
+    }
+
+    if (!error && restored.length > 0) {
+      // Only ever deletes N rows, never P / L / A
+      const res = await supabase
+        .from('attendance')
+        .delete()
+        .eq('week_start', weekStart)
+        .eq('status', 'N')
+        .in('lesson_key', restored.map(l => l.id))
+        .select('student_id')
+      error = res.error
+      if (!error && (!res.data || res.data.length === 0)) {
+        error = { message: 'Nothing was deleted. Check that your Supabase policy allows deleting from the attendance table.' }
+      }
+    }
+
+    if (error) {
+      setLoading(false)
+      alert('Error saving: ' + error.message)
+      return
+    }
+
+    await loadAdminWeek(weekStart)
+    alert('No Class lessons saved successfully!')
   }
 
   const calculateClassStats = () => {
@@ -509,10 +620,11 @@ export default function App() {
     view === 'month' ? { action: navigateToHome, label: 'Back to Months' } :
       view === 'week' ? { action: () => setView('month'), label: 'Back to Weeks' } :
         view === 'advanced_stats' ? { action: () => setView('stats'), label: 'Back to Analytics' } :
-          null
+          isAdmin && view === 'home' ? { action: () => window.location.assign('/'), label: 'Back to Dashboard' } :
+            null
 
   return (
-    <div className="shell">
+    <div className={`shell ${isAdmin ? 'admin' : ''}`}>
       <div className="app">
         <div className="topbar">
           {back && (
@@ -527,6 +639,7 @@ export default function App() {
             <h1 className="title">Alim Class Year 5</h1>
             <p className="subtitle">Attendance Tracking System</p>
           </div>
+          {!isAdmin && (
           <nav className="tabs">
             <button
               onClick={navigateToHome}
@@ -541,6 +654,7 @@ export default function App() {
               Analytics &amp; Stats
             </button>
           </nav>
+          )}
         </header>
 
         {/* 1. HOME VIEW: Month Grid */}
@@ -648,6 +762,7 @@ export default function App() {
                   &rsaquo;
                 </button>
               </div>
+              {!isAdmin && (
               <div className="week-header-select">
                 <label className="select-label">Select Student</label>
                 <select
@@ -660,6 +775,7 @@ export default function App() {
                   ))}
                 </select>
               </div>
+              )}
             </div>
 
             <div className="swipe-area" ref={weekSwipe.areaRef}>
@@ -676,10 +792,11 @@ export default function App() {
                   onAnimationEnd={e => { if (e.target === e.currentTarget) setWeekSlide(null) }}
                 >
                   {LESSONS.map(lesson => {
-                    const isFuture = isFutureLesson(selectedWeek?.startDateStr, lesson.day)
+                    const isFuture = !isAdmin && isFutureLesson(selectedWeek?.startDateStr, lesson.day)
+                    const isNoClass = !isAdmin && attendance[lesson.id] === 'N'
 
                     return (
-                      <div key={lesson.id} className={`lesson-card ${isFuture ? 'disabled' : ''}`}>
+                      <div key={lesson.id} className={`lesson-card ${isFuture || isNoClass ? 'disabled' : ''}`}>
                         <div className="lesson-top">
                           <div className="lesson-day">
                             {getFormattedLessonDate(selectedWeek?.startDateStr, lesson.day)}
@@ -688,15 +805,29 @@ export default function App() {
                           <span className="teacher-badge">{lesson.teacher}</span>
                         </div>
 
-                        {isFuture ? (
+                        {isAdmin ? (
+                          <div className="status-row single">
+                            <button
+                              onClick={() => {
+                                setAdminNo(prev => ({ ...prev, [lesson.id]: !prev[lesson.id] }))
+                                setDirty(true)
+                              }}
+                              title="No Class"
+                              className={`status-btn ${adminNo[lesson.id] ? 'selected s-N' : ''}`}
+                            >
+                              N
+                            </button>
+                          </div>
+                        ) : isNoClass ? (
+                          <div className="future-tag">No Class</div>
+                        ) : isFuture ? (
                           <div className="future-tag">Future Lesson</div>
                         ) : (
                           <div className="status-row">
                             {[
                               { label: 'P', value: 'P', title: 'Present' },
                               { label: 'L', value: 'L', title: 'Late' },
-                              { label: 'A', value: 'A', title: 'Absent' },
-                              { label: 'N', value: 'N', title: 'No Class' }
+                              { label: 'A', value: 'A', title: 'Absent' }
                             ].map(opt => (
                               <button
                                 key={opt.value}
@@ -720,8 +851,8 @@ export default function App() {
             </div>
 
             {!loading && (
-              <button onClick={handleSaveAttendance} className="submit-btn">
-                Save Attendance Record
+              <button onClick={isAdmin ? handleSaveNoClass : handleSaveAttendance} className="submit-btn">
+                {isAdmin ? 'Save No Class Lessons' : 'Save Attendance Record'}
               </button>
             )}
           </section>
