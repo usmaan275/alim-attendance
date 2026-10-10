@@ -267,10 +267,31 @@ export default function App() {
   }
 
   async function fetchAllAttendance() {
-    const { data } = await supabase
-      .from('attendance')
-      .select('student_id, week_start, lesson_key, status')
-    if (data) setAllAttendance(data)
+    // Supabase returns at most 1000 rows per request, so fetch the table in pages
+    // (ordered by the unique key so pages never overlap or skip rows)
+    const PAGE_SIZE = 1000
+    let all = []
+    let total = null
+
+    while (total === null || all.length < total) {
+      const { data, error, count } = await supabase
+        .from('attendance')
+        .select('student_id, week_start, lesson_key, status', { count: 'exact' })
+        .order('week_start')
+        .order('lesson_key')
+        .order('student_id')
+        .range(all.length, all.length + PAGE_SIZE - 1)
+
+      if (error) {
+        console.error('Error loading attendance:', error.message)
+        return // keep the data we already had rather than showing partial numbers
+      }
+      if (total === null) total = count
+      if (!data || data.length === 0) break
+      all = all.concat(data)
+    }
+
+    setAllAttendance(all)
   }
 
   async function loadWeekAttendance(weekStart, studentId) {
