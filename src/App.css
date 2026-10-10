@@ -383,11 +383,15 @@
   text-overflow: ellipsis;
 }
 
+/* ---------- Status buttons ----------
+   Normal view has P / L / A (3 columns). The admin page has a single N button. */
 .status-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.3em;
 }
+
+.status-row.single { grid-template-columns: minmax(0, 1fr); }
 
 .status-btn {
   height: 2.5em;
@@ -700,11 +704,6 @@
 .l-bg { background: var(--warn-soft);   color: var(--warn); }
 .a-bg { background: var(--bad-soft);    color: var(--bad); }
 .t-bg { background: var(--accent-soft); color: var(--accent); }
-
-/* ---------- Status buttons ----------
-   Normal view has P / L / A (3 columns). The admin page has a single N button. */
-.status-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.status-row.single { grid-template-columns: minmax(0, 1fr); }
  
 /* ---------- Admin page: blue accent instead of purple ---------- */
 .shell.admin {
@@ -713,6 +712,14 @@
   --accent-line: rgba(96, 165, 250, 0.5);
 }
 .shell.admin .submit-btn { box-shadow: 0 6px 20px rgba(96, 165, 250, 0.25); }
+
+/* ---------- Stats page: spinner shown in place of a table while loading ---------- */
+.table-loading {
+  min-height: 9em;
+  border: 1px solid var(--line);
+  border-radius: 1em;
+  background: var(--surface);
+}
 
 /* ---------- Larger screens: same layout, just more breathing room ---------- */
 @media (min-width: 700px) {

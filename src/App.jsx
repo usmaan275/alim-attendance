@@ -7,6 +7,7 @@ import './swipe.css'
 // ---------- Advanced analytics filter options (derived from LESSONS) ----------
 const ALL_TEACHERS = 'All Teachers'
 const ALL_DAYS = 'All Days'
+const ALL_MONTHS = 'All Months'
 const TEACHERS = [ALL_TEACHERS, ...new Set(LESSONS.map(l => l.teacher))]
 const DAYS = [ALL_DAYS, ...new Set(LESSONS.map(l => l.day))]
 const LESSON_BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]))
@@ -222,6 +223,7 @@ export default function App() {
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [attendance, setAttendance] = useState({})
   const [allAttendance, setAllAttendance] = useState([])
+  const [attendanceLoading, setAttendanceLoading] = useState(true) // true while the stats data is being fetched
   const [loading, setLoading] = useState(false)
 
   // Swipe navigation
@@ -237,6 +239,7 @@ export default function App() {
   // Advanced analytics filters
   const [analyticsScope, setAnalyticsScope] = useState('ALL')
   const [selectedTeacher, setSelectedTeacher] = useState(ALL_TEACHERS)
+  const [analyticsMonth, setAnalyticsMonth] = useState(ALL_MONTHS)
   const [selectedDay, setSelectedDay] = useState(ALL_DAYS)
 
   useEffect(() => {
@@ -267,6 +270,8 @@ export default function App() {
   }
 
   async function fetchAllAttendance() {
+    setAttendanceLoading(true)
+
     // Supabase returns at most 1000 rows per request, so fetch the table in pages
     // (ordered by the unique key so pages never overlap or skip rows)
     const PAGE_SIZE = 1000
@@ -284,6 +289,7 @@ export default function App() {
 
       if (error) {
         console.error('Error loading attendance:', error.message)
+        setAttendanceLoading(false)
         return // keep the data we already had rather than showing partial numbers
       }
       if (total === null) total = count
@@ -292,6 +298,7 @@ export default function App() {
     }
 
     setAllAttendance(all)
+    setAttendanceLoading(false)
   }
 
   async function loadWeekAttendance(weekStart, studentId) {
@@ -521,6 +528,13 @@ export default function App() {
       if (!lesson) return false
       if (selectedTeacher !== ALL_TEACHERS && lesson.teacher !== selectedTeacher) return false
       if (selectedDay !== ALL_DAYS && lesson.day !== selectedDay) return false
+
+      if (analyticsMonth !== ALL_MONTHS) {
+        const month = MONTHS.find(m => m.name === analyticsMonth)
+        const dateObj = getLessonDateObj(a.week_start, lesson.day)
+        if (!month || !dateObj) return false
+        if (dateObj.getFullYear() !== month.year || dateObj.getMonth() !== month.month) return false
+      }
       return true
     })
 
@@ -578,6 +592,9 @@ export default function App() {
   const punctualityTone = summary.punctualityPct === 'N/A'
     ? 'neutral'
     : latenessTone(100 - parseFloat(summary.punctualityPct))
+
+  // Stats page: show spinners until both the students and their attendance have loaded
+  const statsLoading = attendanceLoading || students.length === 0
 
   // ---------- Swipe navigation: weeks ----------
   const weekIndex = selectedWeek
@@ -894,6 +911,12 @@ export default function App() {
               Statistics are based on all marked sessions across the term. Attendance rate is calculated as attended lessons (presents + lates) divided by total marked sessions.
             </p>
 
+            {statsLoading ? (
+              <div className="loading table-loading" role="status">
+                <span className="spinner" aria-hidden="true" />
+                <span className="sr-only">Loading attendance statistics...</span>
+              </div>
+            ) : (
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
@@ -929,6 +952,7 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            )}
 
             <h2 className="section-title spaced">
               Class Lateness Overview
@@ -937,6 +961,12 @@ export default function App() {
               Lateness is calculated as late lessons divided by attended lessons (presents + lates).
             </p>
 
+            {statsLoading ? (
+              <div className="loading table-loading" role="status">
+                <span className="spinner" aria-hidden="true" />
+                <span className="sr-only">Loading attendance statistics...</span>
+              </div>
+            ) : (
             <div className="table-wrap">
               <table className="table">
                 <colgroup>
@@ -976,6 +1006,7 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            )}
           </section>
         )}
 
@@ -1000,7 +1031,7 @@ export default function App() {
                 >
                   <option value="ALL">All Students</option>
                   {students.map(s => (
-                    <option key={s.id} value={s.id}>#{s.roll_no} — {s.name}</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </div>
@@ -1014,6 +1045,20 @@ export default function App() {
                 >
                   {TEACHERS.map(t => (
                     <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">Filter by Month</label>
+                <select
+                  value={analyticsMonth}
+                  onChange={e => setAnalyticsMonth(e.target.value)}
+                  className="select"
+                >
+                  <option value={ALL_MONTHS}>{ALL_MONTHS}</option>
+                  {MONTHS.map(m => (
+                    <option key={m.name} value={m.name}>{m.name}</option>
                   ))}
                 </select>
               </div>
