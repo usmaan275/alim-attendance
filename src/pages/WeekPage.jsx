@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams, useBlocker } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { LESSONS, getFormattedLessonDate, isFutureLesson, isCurrentWeek } from '../constants'
+import { LESSONS, getFormattedLessonDate, isCurrentWeek } from '../constants'
 import { ALL_WEEKS, findWeek } from '../utils/calendar'
 import useSwipe from '../hooks/useSwipe'
 import useAdminMode from '../hooks/useAdminMode'
 import { useClassContext } from '../hooks/useClassData'
 import Loading from '../components/Loading'
+import LessonCard from '../components/LessonCard'
+import NoteSheet from '../components/NoteSheet'
+import ConfirmDialogue from '../components/ConfirmDialogue'
+
+const EMPTY_NOTE = { comment: '', online: false }
 
 // One week of lessons. Swipe left / right (or use the arrows) for the next / previous week.
 // On /admin/week the same page marks whole lessons as No Class for every student.
@@ -20,7 +25,9 @@ export default function WeekPage() {
   const weekStart = selectedWeek.startDateStr
   const weekIndex = ALL_WEEKS.findIndex(w => w.startDateStr === weekStart)
 
-  const [attendance, setAttendance] = useState({})
+  const [attendance, setAttendance] = useState({})   // lesson id -> 'P' | 'L' | 'A' | 'N' | null
+  const [notes, setNotes] = useState({})             // lesson id -> { comment, online }
+  const [noteFor, setNoteFor] = useState(null)       // lesson id whose note sheet is open
   const [loading, setLoading] = useState(true)
   const [dirty, setDirty] = useState(false)          // true when the week has unsaved changes
   const [weekSlide, setWeekSlide] = useState(null)   // direction the new week slides in from
@@ -29,6 +36,8 @@ export default function WeekPage() {
   // Admin page: this week's rows for every student, and which lessons are ticked as No Class
   const [adminRows, setAdminRows] = useState([])
   const [adminNo, setAdminNo] = useState({})
+
+  const getNote = (lessonId) => notes[lessonId] || EMPTY_NOTE
 
   // Ignore any response that is still in flight when we leave the page
   useEffect(() => () => { loadRequest.current += 1 }, [])
@@ -47,19 +56,12 @@ export default function WeekPage() {
     }
   }, [weekStart, students, isAdmin])
 
-  // Browser back / on-screen back / tabs: ask before throwing away unsaved marks
+  // Browser back / on-screen back / tabs: ask before throwing away unsaved marks.
+  // This uses an in-app dialog (shown below) because a native confirm() freezes iOS Safari
+  // while it is in the middle of going back.
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     dirty && currentLocation.pathname !== nextLocation.pathname
   )
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      if (window.confirm('You have unsaved changes. Discard them and leave this page?')) {
-        blocker.proceed()
-      } else {
-        blocker.reset()
-      }
-    }
-  }, [blocker])
 
   async function loadWeekAttendance(week, studentId) {
     if (!week || !studentId) return
@@ -76,6 +78,7 @@ export default function WeekPage() {
     if (requestId !== loadRequest.current) return
 
     const initial = {}
+    const initialNotes = {}
     // Default all lessons to null so none of P, L or A start pre-selected
     LESSONS.forEach(l => { initial[l.id] = null })
 
@@ -83,9 +86,12 @@ export default function WeekPage() {
     if (data && data.length > 0) {
       data.forEach(item => {
         initial[item.lesson_key] = item.status
+        initialNotes[item.lesson_key] = { comment: item.comment || '', online: Boolean(item.online) }
       })
     }
     setAttendance(initial)
+    setNotes(initialNotes)
+    setNoteFor(null)
     setDirty(false)
     setLoading(false)
   }
@@ -120,18 +126,40 @@ export default function WeekPage() {
     setLoading(false)
   }
 
+  // ---------- Marking attendance and notes ----------
+  const handleStatus = (lessonId, value) => {
+    setAttendance(prev => ({ ...prev, [lessonId]: value }))
+    // "Attended online" only makes sense for P / L
+    if (value === 'A' && getNote(lessonId).online) {
+      setNotes(prev => ({ ...prev, [lessonId]: { ...getNote(lessonId), online: false } }))
+    }
+    setDirty(true)
+  }
+
+  const updateNote = (lessonId, patch) => {
+    setNotes(prev => ({ ...prev, [lessonId]: { ...(prev[lessonId] || EMPTY_NOTE), ...patch } }))
+    setDirty(true)
+  }
+
   const handleSaveAttendance = async () => {
     if (!selectedStudentId) return
 
     // Filter out unmarked lessons (where status is null or undefined)
     const updates = LESSONS
       .filter(lesson => attendance[lesson.id] !== null && attendance[lesson.id] !== undefined)
-      .map(lesson => ({
-        student_id: selectedStudentId,
-        week_start: weekStart,
-        lesson_key: lesson.id,
-        status: attendance[lesson.id]
-      }))
+      .map(lesson => {
+        const status = attendance[lesson.id]
+        const note = getNote(lesson.id)
+        const comment = note.comment.trim()
+        return {
+          student_id: selectedStudentId,
+          week_start: weekStart,
+          lesson_key: lesson.id,
+          status,
+          comment: comment === '' ? null : comment,
+          online: status === 'A' ? false : note.online
+        }
+      })
 
     if (updates.length === 0) {
       alert('Please select attendance status for at least one lesson before saving.')
@@ -179,12 +207,15 @@ export default function WeekPage() {
     let error = null
 
     if (newlyCancelled.length > 0) {
+      // comment / online are cleared too, so an old note doesn't survive on a cancelled lesson
       const rows = students.flatMap(s =>
         newlyCancelled.map(l => ({
           student_id: s.id,
           week_start: weekStart,
           lesson_key: l.id,
-          status: 'N'
+          status: 'N',
+          comment: null,
+          online: false
         }))
       )
       const res = await supabase
@@ -246,6 +277,8 @@ export default function WeekPage() {
     onGo: goToWeek
   })
 
+  const sheetLesson = noteFor ? LESSONS.find(l => l.id === noteFor) : null
+
   return (
     <section className="view">
       <div className="week-header">
@@ -299,61 +332,23 @@ export default function WeekPage() {
             className={`lesson-grid ${weekSlide ? `slide-in-${weekSlide}` : ''}`}
             onAnimationEnd={e => { if (e.target === e.currentTarget) setWeekSlide(null) }}
           >
-            {LESSONS.map(lesson => {
-              const isFuture = !isAdmin && isFutureLesson(weekStart, lesson.day)
-              const isNoClass = !isAdmin && attendance[lesson.id] === 'N'
-
-              return (
-                <div key={lesson.id} className={`lesson-card ${isFuture || isNoClass ? 'disabled' : ''}`}>
-                  <div className="lesson-top">
-                    <div className="lesson-day">
-                      {getFormattedLessonDate(weekStart, lesson.day)}
-                    </div>
-                    <div className="lesson-time">{lesson.time}</div>
-                    <span className="teacher-badge">{lesson.teacher}</span>
-                  </div>
-
-                  {isAdmin ? (
-                    <div className="status-row single">
-                      <button
-                        onClick={() => {
-                          setAdminNo(prev => ({ ...prev, [lesson.id]: !prev[lesson.id] }))
-                          setDirty(true)
-                        }}
-                        title="No Class"
-                        className={`status-btn ${adminNo[lesson.id] ? 'selected s-N' : ''}`}
-                      >
-                        N
-                      </button>
-                    </div>
-                  ) : isNoClass ? (
-                    <div className="future-tag">No Class</div>
-                  ) : isFuture ? (
-                    <div className="future-tag">Future Lesson</div>
-                  ) : (
-                    <div className="status-row">
-                      {[
-                        { label: 'P', value: 'P', title: 'Present' },
-                        { label: 'L', value: 'L', title: 'Late' },
-                        { label: 'A', value: 'A', title: 'Absent' }
-                      ].map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={() => {
-                            setAttendance(prev => ({ ...prev, [lesson.id]: opt.value }))
-                            setDirty(true)
-                          }}
-                          title={opt.title}
-                          className={`status-btn ${attendance[lesson.id] === opt.value ? `selected s-${opt.value}` : ''}`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {LESSONS.map(lesson => (
+              <LessonCard
+                key={lesson.id}
+                lesson={lesson}
+                weekStart={weekStart}
+                isAdmin={isAdmin}
+                status={attendance[lesson.id]}
+                note={getNote(lesson.id)}
+                cancelled={Boolean(adminNo[lesson.id])}
+                onStatus={(value) => handleStatus(lesson.id, value)}
+                onToggleNo={() => {
+                  setAdminNo(prev => ({ ...prev, [lesson.id]: !prev[lesson.id] }))
+                  setDirty(true)
+                }}
+                onOpenNote={() => setNoteFor(lesson.id)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -362,6 +357,26 @@ export default function WeekPage() {
         <button onClick={isAdmin ? handleSaveNoClass : handleSaveAttendance} className="submit-btn">
           {isAdmin ? 'Save No Class Lessons' : 'Save Attendance Record'}
         </button>
+      )}
+
+      {blocker.state === 'blocked' && (
+        <ConfirmDialogue
+          message="You have unsaved changes. Discard them and leave this page?"
+          onConfirm={() => blocker.proceed()}
+          onCancel={() => blocker.reset()}
+        />
+      )}
+
+      {sheetLesson && (
+        <NoteSheet
+          lessonLabel={`${getFormattedLessonDate(weekStart, sheetLesson.day)} · ${sheetLesson.time}`}
+          status={attendance[sheetLesson.id]}
+          online={getNote(sheetLesson.id).online}
+          comment={getNote(sheetLesson.id).comment}
+          onOnlineChange={(value) => updateNote(sheetLesson.id, { online: value })}
+          onCommentChange={(value) => updateNote(sheetLesson.id, { comment: value })}
+          onClose={() => setNoteFor(null)}
+        />
       )}
     </section>
   )

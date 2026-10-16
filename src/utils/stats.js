@@ -39,8 +39,10 @@ export const tally = (records) => {
   const absent = records.filter(a => a.status === 'A').length
   const total = present + late + absent
   const attended = present + late
+  // Attended lessons (P or L) that were flagged as attended online
+  const online = records.filter(a => a.online && (a.status === 'P' || a.status === 'L')).length
   const pct = total > 0 ? ((attended / total) * 100).toFixed(1) : 'N/A'
-  return { present, late, absent, total, attended, pct }
+  return { present, late, absent, total, attended, online, pct }
 }
 
 // ---------- Stats page tables ----------
@@ -140,9 +142,15 @@ export function buildSummary(records) {
   const ranked = Object.entries(absencesByDay).sort((a, b) => b[1] - a[1])
   const mostMissedDay = ranked.length > 0 ? ranked[0][0] : 'N/A'
 
+  // Share of attended lessons (P or L) that were attended online
+  const onlinePct = overall.attended > 0
+    ? ((overall.online / overall.attended) * 100).toFixed(1)
+    : 'N/A'
+
   return {
     overallPct: overall.pct,
     punctualityPct,
+    onlinePct,
     mostMissedDay,
     totalRecorded: overall.total
   }
@@ -166,4 +174,14 @@ export function getMonthAnalytics(records, year, monthIndex) {
     // Total lessons evaluated for this exact month
     total: monthRecords.length
   }
+}
+
+// Number of distinct lessons that have been marked, the same denominator the stats page uses.
+// It is one fixed number for every student, follows the teacher, month and day filters,
+// and ignores the student filter.
+export function countTotalLessons(allAttendance, { teacher, month, day }) {
+  const lessons = new Set()
+  filterRecords(allAttendance, { scope: 'ALL', teacher, month, day })
+    .forEach(a => lessons.add(`${a.week_start}_${a.lesson_key}`))
+  return lessons.size
 }

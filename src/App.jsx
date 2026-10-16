@@ -5,6 +5,7 @@ import useAdminMode from './hooks/useAdminMode'
 import { findWeek, monthForWeek, monthKey } from './utils/calendar'
 import './App.css'
 import './swipe.css'
+import './notes.css'
 
 // Shared layout: back button, header and tabs stay put while the page below changes
 export default function App() {

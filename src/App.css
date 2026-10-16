@@ -627,6 +627,7 @@
 .summary-value.warn, .rate-num.warn { color: var(--warn); }
 .summary-value.low,  .rate-num.low  { color: var(--bad); }
 .summary-value.neutral, .rate-num.neutral { color: var(--ink); }
+.summary-value.online { color: #7dd3fc; }
 
 /* ---------- Advanced analytics: monthly breakdown (3 columns x 4 rows) ---------- */
 .month-grid.analytics-month-grid {

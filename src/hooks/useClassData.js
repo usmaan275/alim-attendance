@@ -32,7 +32,7 @@ export default function useClassData() {
     while (total === null || all.length < total) {
       const { data, error, count } = await supabase
         .from('attendance')
-        .select('student_id, week_start, lesson_key, status', { count: 'exact' })
+        .select('student_id, week_start, lesson_key, status, online', { count: 'exact' })
         .order('week_start')
         .order('lesson_key')
         .order('student_id')

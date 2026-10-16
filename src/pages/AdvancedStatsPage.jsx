@@ -3,7 +3,7 @@ import { MONTHS } from '../constants'
 import { useClassContext } from '../hooks/useClassData'
 import {
   ALL_TEACHERS, ALL_DAYS, ALL_MONTHS, TEACHERS, DAYS,
-  attendanceTone, latenessTone, filterRecords, buildSummary, getMonthAnalytics
+  attendanceTone, latenessTone, filterRecords, buildSummary, getMonthAnalytics, countTotalLessons
 } from '../utils/stats'
 
 export default function AdvancedStatsPage() {
@@ -22,6 +22,13 @@ export default function AdvancedStatsPage() {
     day: selectedDay
   })
   const summary = buildSummary(filteredRecords)
+
+  // Total lessons ignores the student filter but follows teacher, month and day
+  const totalLessons = countTotalLessons(allAttendance, {
+    teacher: selectedTeacher,
+    month: analyticsMonth,
+    day: selectedDay
+  })
 
   const punctualityTone = summary.punctualityPct === 'N/A'
     ? 'neutral'
@@ -120,9 +127,23 @@ export default function AdvancedStatsPage() {
         </div>
 
         <div className="summary-card">
-          <span className="summary-title">Total Lessons Evaluated</span>
+          <span className="summary-title">Online Attendance</span>
+          <span className="summary-value online">
+            {summary.onlinePct}{summary.onlinePct !== 'N/A' && '%'}
+          </span>
+          <span className="summary-sub">Online vs attended lessons</span>
+        </div>
+
+        <div className="summary-card">
+          <span className="summary-title">Total Lessons This Year</span>
+          <span className="summary-value neutral">{totalLessons}</span>
+          <span className="summary-sub">Total amount of lessons</span>
+        </div>
+
+        <div className="summary-card">
+          <span className="summary-title">Total Evaluations</span>
           <span className="summary-value neutral">{summary.totalRecorded}</span>
-          <span className="summary-sub">Recorded marked entries</span>
+          <span className="summary-sub">Total marked entries</span>
         </div>
       </div>
 
