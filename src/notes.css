@@ -163,6 +163,9 @@
   .sheet { animation: none; }
 }
 
+/* ---------- Online attendance value (light blue) ---------- */
+.summary-value.online { color: #7dd3fc; }
+
 /* ---------- In-app confirm dialog (Discard / Stay) ---------- */
 .confirm-text {
   margin: 0 0 1em;
@@ -224,3 +227,45 @@
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
 }
+
+/* ---------- Unsaved marker on a lesson card ----------
+   Amber outline plus a small tag sitting on the card's top border (no layout shift). */
+.lesson-card { position: relative; }
+
+.lesson-card.unsaved {
+  border-color: var(--warn);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.15);
+}
+
+.unsaved-tag {
+  position: absolute;
+  top: -0.75em;
+  right: 0.8em;
+  padding: 0.15em 0.65em;
+  border-radius: 999px;
+  background: var(--warn);
+  color: #16171d;
+  font-size: 0.7em;
+  font-weight: 700;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+/* ---------- Mark all present (above the lesson grid) ---------- */
+.mark-all-btn {
+  display: block;
+  width: 100%;
+  height: 2.9em;
+  margin-bottom: 1em;
+  padding: 0 1em;
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  border-radius: 0.85em;
+  background: var(--good-soft);
+  color: var(--good);
+  font-size: 0.95em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.15s ease;
+}
+.mark-all-btn:active:not(:disabled) { transform: scale(0.985); }
+.mark-all-btn:disabled { opacity: 0.4; cursor: default; }

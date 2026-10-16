@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams, useBlocker } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { LESSONS, getFormattedLessonDate, isCurrentWeek } from '../constants'
+import { LESSONS, getFormattedLessonDate, isCurrentWeek, isFutureLesson } from '../constants'
 import { ALL_WEEKS, findWeek } from '../utils/calendar'
+import { lessonHasUnsaved } from '../utils/unsaved'
 import useSwipe from '../hooks/useSwipe'
 import useAdminMode from '../hooks/useAdminMode'
 import { useClassContext } from '../hooks/useClassData'
@@ -28,9 +29,10 @@ export default function WeekPage() {
 
   const [attendance, setAttendance] = useState({})   // lesson id -> 'P' | 'L' | 'A' | 'N' | null
   const [notes, setNotes] = useState({})             // lesson id -> { comment, online }
+  const [savedAttendance, setSavedAttendance] = useState({}) // what is in the database right now
+  const [savedNotes, setSavedNotes] = useState({})
   const [noteFor, setNoteFor] = useState(null)       // lesson id whose note sheet is open
   const [loading, setLoading] = useState(true)
-  const [dirty, setDirty] = useState(false)          // true when the week has unsaved changes
   const [weekSlide, setWeekSlide] = useState(null)   // direction the new week slides in from
   const [pendingWeekDir, setPendingWeekDir] = useState(null) // week change waiting for "Discard unsaved changes?"
   const loadRequest = useRef(0)                      // lets us ignore out-of-date responses
@@ -69,13 +71,6 @@ export default function WeekPage() {
     }
   }, [weekStart, students, isAdmin])
 
-  // Browser back / on-screen back / tabs: ask before throwing away unsaved marks.
-  // This uses an in-app dialog (shown below) because a native confirm() freezes iOS Safari
-  // while it is in the middle of going back.
-  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-    dirty && currentLocation.pathname !== nextLocation.pathname
-  )
-
   async function loadWeekAttendance(week, studentId) {
     if (!week || !studentId) return
     const requestId = ++loadRequest.current
@@ -104,8 +99,9 @@ export default function WeekPage() {
     }
     setAttendance(initial)
     setNotes(initialNotes)
+    setSavedAttendance(initial)
+    setSavedNotes(initialNotes)
     setNoteFor(null)
-    setDirty(false)
     setLoading(false)
   }
 
@@ -135,9 +131,23 @@ export default function WeekPage() {
 
     setAdminRows(rows)
     setAdminNo(marked)
-    setDirty(false)
     setLoading(false)
   }
+
+  // ---------- Unsaved changes ----------
+  // A lesson is "unsaved" when what is on screen differs from what is saved
+  const adminChanged = (lessonId) => Boolean(adminNo[lessonId]) !== isCancelledForClass(adminRows, lessonId)
+  const isUnsaved = (lessonId) => isAdmin
+    ? adminChanged(lessonId)
+    : lessonHasUnsaved(attendance[lessonId], getNote(lessonId), savedAttendance[lessonId], savedNotes[lessonId])
+  const dirty = !loading && LESSONS.some(l => isUnsaved(l.id))
+
+  // Browser back / on-screen back / tabs: ask before throwing away unsaved marks.
+  // This uses an in-app dialog (shown below) because a native confirm() freezes iOS Safari
+  // while it is in the middle of going back.
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    dirty && currentLocation.pathname !== nextLocation.pathname
+  )
 
   // ---------- Marking attendance and notes ----------
   const handleStatus = (lessonId, value) => {
@@ -146,12 +156,23 @@ export default function WeekPage() {
     if (value === 'A' && getNote(lessonId).online) {
       setNotes(prev => ({ ...prev, [lessonId]: { ...getNote(lessonId), online: false } }))
     }
-    setDirty(true)
   }
 
   const updateNote = (lessonId, patch) => {
     setNotes(prev => ({ ...prev, [lessonId]: { ...(prev[lessonId] || EMPTY_NOTE), ...patch } }))
-    setDirty(true)
+  }
+
+  // Lessons that can still be marked: not in the future, not No Class, and not marked yet
+  const unmarkedLessons = LESSONS.filter(l => !isFutureLesson(weekStart, l.day) && !attendance[l.id])
+
+  // Deliberate shortcut: sets P on the unmarked lessons only, so L / A you already chose are kept
+  const markAllPresent = () => {
+    if (unmarkedLessons.length === 0) return
+    setAttendance(prev => {
+      const next = { ...prev }
+      unmarkedLessons.forEach(l => { next[l.id] = 'P' })
+      return next
+    })
   }
 
   const handleSaveAttendance = async () => {
@@ -189,7 +210,9 @@ export default function WeekPage() {
     if (error) {
       showToast('Error saving: ' + error.message, 'error')
     } else {
-      setDirty(false)
+      // What is on screen is now what is saved, so every "Unsaved" marker clears
+      setSavedAttendance(attendance)
+      setSavedNotes(notes)
       showToast('Attendance saved successfully!', 'success')
       refreshAttendance()
     }
@@ -282,7 +305,6 @@ export default function WeekPage() {
     if (!next) return
     setWeekSlide(dir)
     setLoading(true) // hide the old week's marks straight away
-    setDirty(false)
     navigate(`${base}/week?date=${next.startDateStr}`, { replace: true })
   }
 
@@ -346,6 +368,16 @@ export default function WeekPage() {
         )}
       </div>
 
+      {!isAdmin && (
+        <button
+          className="mark-all-btn"
+          disabled={loading || unmarkedLessons.length === 0}
+          onClick={markAllPresent}
+        >
+          Mark all present
+        </button>
+      )}
+
       <div className="swipe-area" ref={weekSwipe.areaRef}>
         {loading ? (
           <Loading label="Loading attendance records..." />
@@ -365,11 +397,9 @@ export default function WeekPage() {
                 status={attendance[lesson.id]}
                 note={getNote(lesson.id)}
                 cancelled={Boolean(adminNo[lesson.id])}
+                unsaved={isUnsaved(lesson.id)}
                 onStatus={(value) => handleStatus(lesson.id, value)}
-                onToggleNo={() => {
-                  setAdminNo(prev => ({ ...prev, [lesson.id]: !prev[lesson.id] }))
-                  setDirty(true)
-                }}
+                onToggleNo={() => setAdminNo(prev => ({ ...prev, [lesson.id]: !prev[lesson.id] }))}
                 onOpenNote={() => setNoteFor(lesson.id)}
               />
             ))}

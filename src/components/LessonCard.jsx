@@ -11,7 +11,7 @@ const STATUS_OPTIONS = [
 // Normal view: P / L / A buttons with a note row underneath (No Class and Future lessons show a tag instead).
 // Admin view: a single N button that marks the lesson as No Class for everyone.
 export default function LessonCard({
-  lesson, weekStart, isAdmin, status, note, cancelled,
+  lesson, weekStart, isAdmin, status, note, cancelled, unsaved,
   onStatus, onToggleNo, onOpenNote
 }) {
   const isFuture = !isAdmin && isFutureLesson(weekStart, lesson.day)
@@ -19,7 +19,8 @@ export default function LessonCard({
   const hasNote = Boolean(note.comment) || note.online
 
   return (
-    <div className={`lesson-card ${isFuture || isNoClass ? 'disabled' : ''}`}>
+    <div className={`lesson-card ${isFuture || isNoClass ? 'disabled' : ''} ${unsaved ? 'unsaved' : ''}`}>
+      {unsaved && <span className="unsaved-tag">Unsaved</span>}
       <div className="lesson-top">
         <div className="lesson-day">
           {getFormattedLessonDate(weekStart, lesson.day)}
