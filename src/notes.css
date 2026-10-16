@@ -42,8 +42,8 @@
   flex: none;
   padding: 0.1em 0.45em;
   border-radius: 0.5em;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: rgba(125, 211, 252, 0.15);
+  color: #7dd3fc;
   font-size: 0.85em;
   font-weight: 700;
 }
@@ -193,4 +193,34 @@
   border-color: rgba(248, 113, 113, 0.4);
   background: var(--bad-soft);
   color: var(--bad);
+}
+
+/* ---------- Toast (in-app replacement for alert) ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1.2em + env(safe-area-inset-bottom));
+  z-index: 60;
+  width: max-content;
+  max-width: min(30em, calc(100vw - 2em));
+  padding: 0.8em 1.1em;
+  border: 1px solid var(--line);
+  border-radius: 1em;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transform: translateX(-50%);
+  animation: toast-in 0.2s ease-out;
+}
+.toast.success { border-color: rgba(74, 222, 128, 0.4); color: var(--good); }
+.toast.error { border-color: rgba(248, 113, 113, 0.4); color: var(--bad); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 0.8em); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
 }

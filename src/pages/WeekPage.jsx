@@ -10,6 +10,7 @@ import Loading from '../components/Loading'
 import LessonCard from '../components/LessonCard'
 import NoteSheet from '../components/NoteSheet'
 import ConfirmDialogue from '../components/ConfirmDialogue'
+import Toast from '../components/Toast'
 
 const EMPTY_NOTE = { comment: '', online: false }
 
@@ -33,6 +34,17 @@ export default function WeekPage() {
   const [weekSlide, setWeekSlide] = useState(null)   // direction the new week slides in from
   const [pendingWeekDir, setPendingWeekDir] = useState(null) // week change waiting for "Discard unsaved changes?"
   const loadRequest = useRef(0)                      // lets us ignore out-of-date responses
+
+  // In-app messages instead of alert() / confirm(), which iOS Safari can silently block
+  const [toast, setToast] = useState(null)           // { message, type: 'success' | 'error' | 'info' }
+  const [pendingOverwrite, setPendingOverwrite] = useState(null) // admin warning text waiting for "Replace?"
+  const toastTimer = useRef(null)
+  const showToast = (message, type = 'info') => {
+    clearTimeout(toastTimer.current)
+    setToast({ message, type })
+    toastTimer.current = setTimeout(() => setToast(null), type === 'error' ? 5000 : 2500)
+  }
+  useEffect(() => () => clearTimeout(toastTimer.current), [])
 
   // Admin page: this week's rows for every student, and which lessons are ticked as No Class
   const [adminRows, setAdminRows] = useState([])
@@ -163,7 +175,7 @@ export default function WeekPage() {
       })
 
     if (updates.length === 0) {
-      alert('Please select attendance status for at least one lesson before saving.')
+      showToast('Please select attendance status for at least one lesson before saving.', 'error')
       return
     }
 
@@ -175,34 +187,45 @@ export default function WeekPage() {
 
     setLoading(false)
     if (error) {
-      alert('Error saving: ' + error.message)
+      showToast('Error saving: ' + error.message, 'error')
     } else {
       setDirty(false)
-      alert('Attendance saved successfully!')
+      showToast('Attendance saved successfully!', 'success')
       refreshAttendance()
     }
   }
 
   // Admin save: newly ticked lessons get N for every student, un-ticked ones lose their N rows
-  const handleSaveNoClass = async () => {
-    const newlyCancelled = LESSONS.filter(l => adminNo[l.id] && !isCancelledForClass(adminRows, l.id))
-    const restored = LESSONS.filter(l => !adminNo[l.id] && isCancelledForClass(adminRows, l.id))
+  const getNoClassChanges = () => ({
+    newlyCancelled: LESSONS.filter(l => adminNo[l.id] && !isCancelledForClass(adminRows, l.id)),
+    restored: LESSONS.filter(l => !adminNo[l.id] && isCancelledForClass(adminRows, l.id))
+  })
+
+  // Step 1: check for changes and warn if marking No Class would replace existing P / L / A marks
+  const requestSaveNoClass = () => {
+    const { newlyCancelled, restored } = getNoClassChanges()
 
     if (newlyCancelled.length === 0 && restored.length === 0) {
-      alert('No changes to save.')
+      showToast('No changes to save.', 'info')
       return
     }
 
-    // Warn if marking No Class would replace existing P / L / A marks
     const newIds = new Set(newlyCancelled.map(l => l.id))
     const affected = adminRows.filter(r => newIds.has(r.lesson_key) && ['P', 'A', 'L'].includes(r.status))
     if (affected.length > 0) {
       const studentCount = new Set(affected.map(r => String(r.student_id))).size
-      const ok = window.confirm(
+      setPendingOverwrite(
         `${studentCount} ${studentCount === 1 ? 'student has' : 'students have'} attendance recorded for the lessons you are marking as No Class. Saving will replace their P, L or A marks. Continue?`
       )
-      if (!ok) return
+      return
     }
+
+    saveNoClass()
+  }
+
+  // Step 2: write the changes
+  const saveNoClass = async () => {
+    const { newlyCancelled, restored } = getNoClassChanges()
 
     setLoading(true)
     let error = null
@@ -242,12 +265,12 @@ export default function WeekPage() {
 
     if (error) {
       setLoading(false)
-      alert('Error saving: ' + error.message)
+      showToast('Error saving: ' + error.message, 'error')
       return
     }
 
     await loadAdminWeek(weekStart)
-    alert('No Class lessons saved successfully!')
+    showToast('No Class lessons saved successfully!', 'success')
   }
 
   // ---------- Swipe navigation between weeks ----------
@@ -355,9 +378,22 @@ export default function WeekPage() {
       </div>
 
       {!loading && (
-        <button onClick={isAdmin ? handleSaveNoClass : handleSaveAttendance} className="submit-btn">
+        <button onClick={isAdmin ? requestSaveNoClass : handleSaveAttendance} className="submit-btn">
           {isAdmin ? 'Save No Class Lessons' : 'Save Attendance Record'}
         </button>
+      )}
+
+      {pendingOverwrite && (
+        <ConfirmDialogue
+          message={pendingOverwrite}
+          confirmLabel="Replace"
+          cancelLabel="Cancel"
+          onConfirm={() => {
+            setPendingOverwrite(null)
+            saveNoClass()
+          }}
+          onCancel={() => setPendingOverwrite(null)}
+        />
       )}
 
       {pendingWeekDir && (
@@ -379,6 +415,8 @@ export default function WeekPage() {
           onCancel={() => blocker.reset()}
         />
       )}
+
+      {toast && <Toast message={toast.message} type={toast.type} />}
 
       {sheetLesson && (
         <NoteSheet
