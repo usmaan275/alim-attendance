@@ -31,6 +31,7 @@ export default function WeekPage() {
   const [loading, setLoading] = useState(true)
   const [dirty, setDirty] = useState(false)          // true when the week has unsaved changes
   const [weekSlide, setWeekSlide] = useState(null)   // direction the new week slides in from
+  const [pendingWeekDir, setPendingWeekDir] = useState(null) // week change waiting for "Discard unsaved changes?"
   const loadRequest = useRef(0)                      // lets us ignore out-of-date responses
 
   // Admin page: this week's rows for every student, and which lessons are ticked as No Class
@@ -252,9 +253,6 @@ export default function WeekPage() {
   // ---------- Swipe navigation between weeks ----------
   const canGoWeek = (dir) => (dir === 'next' ? weekIndex < ALL_WEEKS.length - 1 : weekIndex > 0)
 
-  const confirmDiscard = () =>
-    !dirty || window.confirm('You have unsaved changes. Discard them and switch weeks?')
-
   // "replace" so the browser back button returns to the weeks list, not through every week you swiped past
   const goToWeek = (dir) => {
     const next = ALL_WEEKS[weekIndex + (dir === 'next' ? 1 : -1)]
@@ -265,15 +263,18 @@ export default function WeekPage() {
     navigate(`${base}/week?date=${next.startDateStr}`, { replace: true })
   }
 
-  // Used by the arrow buttons (swipes confirm inside the swipe handler)
+  // Arrow buttons: with unsaved changes, ask first (swipes do the same through useSwipe below)
   const requestWeek = (dir) => {
-    if (canGoWeek(dir) && confirmDiscard()) goToWeek(dir)
+    if (!canGoWeek(dir)) return
+    if (dirty) setPendingWeekDir(dir)
+    else goToWeek(dir)
   }
 
   const weekSwipe = useSwipe({
     enabled: true,
     canGo: canGoWeek,
-    confirmGo: confirmDiscard,
+    shouldConfirm: () => dirty,
+    onBlocked: (dir) => setPendingWeekDir(dir),
     onGo: goToWeek
   })
 
@@ -357,6 +358,18 @@ export default function WeekPage() {
         <button onClick={isAdmin ? handleSaveNoClass : handleSaveAttendance} className="submit-btn">
           {isAdmin ? 'Save No Class Lessons' : 'Save Attendance Record'}
         </button>
+      )}
+
+      {pendingWeekDir && (
+        <ConfirmDialogue
+          message="You have unsaved changes. Discard them and switch weeks?"
+          onConfirm={() => {
+            const dir = pendingWeekDir
+            setPendingWeekDir(null)
+            goToWeek(dir)
+          }}
+          onCancel={() => setPendingWeekDir(null)}
+        />
       )}
 
       {blocker.state === 'blocked' && (

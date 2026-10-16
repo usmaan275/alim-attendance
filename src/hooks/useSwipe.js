@@ -10,14 +10,16 @@ const SWIPE_MS = 200    // slide-out duration
  * - areaRef    -> the stable wrapper that listens for touches
  * - contentRef -> the element that follows the finger (re-created for each page)
  * - canGo(dir)      whether there is a page in that direction ('next' | 'prev')
- * - confirmGo(dir)  optional: return false to cancel (e.g. unsaved changes)
+ * - shouldConfirm(dir)  optional: return true when the page needs an answer first (e.g. unsaved changes);
+ *                        the swipe then snaps back and onBlocked(dir) is called so the page can ask
+ * - onBlocked(dir)       called instead of onGo when shouldConfirm returned true
  * - onGo(dir)       change the page
  */
-export default function useSwipe({ enabled, canGo, confirmGo, onGo }) {
+export default function useSwipe({ enabled, canGo, shouldConfirm, onBlocked, onGo }) {
   const areaRef = useRef(null)
   const contentRef = useRef(null)
   const latest = useRef({})
-  latest.current = { canGo, confirmGo, onGo }
+  latest.current = { canGo, shouldConfirm, onBlocked, onGo }
 
   useEffect(() => {
     const area = areaRef.current
@@ -91,14 +93,22 @@ export default function useSwipe({ enabled, canGo, confirmGo, onGo }) {
       const far = Math.abs(dx) > width * SWIPE_SNAP
       const quick = Date.now() - startT < 250 && Math.abs(dx) > 40
       const dir = dx < 0 ? 'next' : 'prev'
-      const { canGo, confirmGo, onGo } = latest.current
+      const { canGo, shouldConfirm, onBlocked, onGo } = latest.current
 
-      const commit = (far || quick) && canGo(dir) && (!confirmGo || confirmGo(dir))
+      const wantsToGo = (far || quick) && canGo(dir)
 
       busy = true
-      if (!commit) {
+      if (!wantsToGo) {
         settle(0, false)
         timer = setTimeout(() => { busy = false }, SWIPE_MS)
+        return
+      }
+
+      // The page needs an answer first: snap back and let it ask with its own dialog
+      if (shouldConfirm && shouldConfirm(dir)) {
+        settle(0, false)
+        timer = setTimeout(() => { busy = false }, SWIPE_MS)
+        if (onBlocked) onBlocked(dir)
         return
       }
 
