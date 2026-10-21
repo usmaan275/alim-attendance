@@ -37,16 +37,14 @@ export default function StatsPage() {
             <colgroup>
               <col style={{ width: '16%' }} />
               <col style={{ width: '36%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '16%' }} />
+              <col style={{ width: '32%' }} />
               <col style={{ width: '20%' }} />
             </colgroup>
             <thead>
               <tr>
                 <th>No.</th>
                 <th>Student Name</th>
-                <th>Attended</th>
-                <th>Total</th>
+                <th>Attended / Total</th>
                 <th>Rate</th>
               </tr>
             </thead>
@@ -55,8 +53,7 @@ export default function StatsPage() {
                 <tr key={s.id}>
                   <td><span className="roll-badge">#{s.roll_no}</span></td>
                   <td className="student-name"><span>{s.name}</span></td>
-                  <td className="attended">{s.presentCount}</td>
-                  <td className="total">{s.denominator}</td>
+                  <td className="attended">{s.presentCount} / {s.denominator}</td>
                   <td>
                     <span className={`pct-badge ${attendanceTone(s.pct)}`}>
                       {s.pct}{s.pct !== 'N/A' && '%'}
@@ -84,16 +81,14 @@ export default function StatsPage() {
             <colgroup>
               <col style={{ width: '16%' }} />
               <col style={{ width: '36%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '16%' }} />
+              <col style={{ width: '32%' }} />
               <col style={{ width: '20%' }} />
             </colgroup>
             <thead>
               <tr>
                 <th>No.</th>
                 <th>Student Name</th>
-                <th>Late</th>
-                <th>Attended</th>
+                <th>Late / Attended</th>
                 <th>Rate</th>
               </tr>
             </thead>
@@ -106,8 +101,7 @@ export default function StatsPage() {
                   <td className="student-name">
                     <span>{s.name}</span>
                   </td>
-                  <td className="num">{s.lateCount}</td>
-                  <td className="num">{s.attendedCount}</td>
+                  <td className="num">{s.lateCount} / {s.attendedCount}</td>
                   <td>
                     <span className={`pct-badge ${latenessTone(s.pct)}`}>
                       {s.pct}{s.pct !== 'N/A' && '%'}
