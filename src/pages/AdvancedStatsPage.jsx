@@ -135,7 +135,7 @@ export default function AdvancedStatsPage() {
         </div>
 
         <div className="summary-card">
-          <span className="summary-title">Total Lessons This Year</span>
+          <span className="summary-title">Total Lessons</span>
           <span className="summary-value neutral">{totalLessons}</span>
           <span className="summary-sub">Total amount of lessons</span>
         </div>
