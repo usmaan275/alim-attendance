@@ -3,14 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { MONTHS, isCurrentMonth } from '../constants'
 import { monthKey } from '../utils/calendar'
 import useAdminMode from '../hooks/useAdminMode'
+import IncompleteWeeks from '../components/IncompleteWeeks'
 
 export default function MonthsPage() {
   const navigate = useNavigate()
-  const { base } = useAdminMode()
+  const { isAdmin, base } = useAdminMode()
 
   return (
     <section className="view">
       <h2 className="section-title">Select Month</h2>
+      {!isAdmin && <IncompleteWeeks />}
       <div className="month-grid">
         {MONTHS.map(m => {
           const isCurrent = isCurrentMonth(m.year, m.month)
