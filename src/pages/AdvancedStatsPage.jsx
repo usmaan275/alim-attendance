@@ -128,7 +128,7 @@ export default function AdvancedStatsPage() {
 
         <div className="summary-card">
           <span className="summary-title">Online Attendance</span>
-          <span className="summary-value online">
+          <span className={`summary-value ${summary.onlinePct === 'N/A' ? 'neutral' : 'online'}`}>
             {summary.onlinePct}{summary.onlinePct !== 'N/A' && '%'}
           </span>
           <span className="summary-sub">Online vs attended lessons</span>
