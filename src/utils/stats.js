@@ -32,6 +32,10 @@ export const latenessTone = (pct) => {
   return 'low'
 }
 
+// Same thresholds as lateness, flipped: 80%+ punctual is good, 60%+ is warn
+export const punctualityTone = (pct) =>
+  pct === 'N/A' ? 'neutral' : latenessTone(100 - parseFloat(pct))
+
 // Counts P / L / A records and works out the attendance rate
 export const tally = (records) => {
   const present = records.filter(a => a.status === 'P').length
@@ -95,6 +99,21 @@ export function calculateLatenessStats(students, allAttendance) {
         pct
       }
     })
+    .sort((a, b) => {
+      if (a.pct === 'N/A') return 1
+      if (b.pct === 'N/A') return -1
+      return parseFloat(b.pct) - parseFloat(a.pct)
+    })
+}
+
+// Punctuality = on-time lessons (P) out of attended lessons (P + L), so it is the reverse of lateness:
+// 20% late becomes 80% punctual, and the table is sorted with the most punctual students first.
+export function calculatePunctualityStats(students, allAttendance) {
+  return calculateLatenessStats(students, allAttendance)
+    .map(s => ({
+      ...s,
+      pct: s.attendedCount > 0 ? ((s.presentCount / s.attendedCount) * 100).toFixed(1) : 'N/A'
+    }))
     .sort((a, b) => {
       if (a.pct === 'N/A') return 1
       if (b.pct === 'N/A') return -1

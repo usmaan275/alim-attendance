@@ -1,7 +1,7 @@
 import React, { useLayoutEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClassContext } from '../hooks/useClassData'
-import { attendanceTone, latenessTone, calculateClassStats, calculateLatenessStats } from '../utils/stats'
+import { attendanceTone, punctualityTone, calculateClassStats, calculatePunctualityStats } from '../utils/stats'
 import Loading from '../components/Loading'
 
 export default function StatsPage() {
@@ -67,10 +67,10 @@ export default function StatsPage() {
       )}
 
       <h2 className="section-title spaced">
-        Class Lateness Overview
+        Class Punctuality Overview
       </h2>
       <p className="section-sub">
-        Lateness is calculated as late lessons divided by attended lessons (presents + lates).
+        Punctuality is calculated as on-time lessons (presents) divided by attended lessons (presents + lates).
       </p>
 
       {statsLoading ? (
@@ -93,7 +93,7 @@ export default function StatsPage() {
               </tr>
             </thead>
             <tbody>
-              {calculateLatenessStats(students, allAttendance).map(s => (
+              {calculatePunctualityStats(students, allAttendance).map(s => (
                 <tr key={s.id}>
                   <td>
                     <span className="roll-badge">#{s.roll_no}</span>
@@ -103,7 +103,7 @@ export default function StatsPage() {
                   </td>
                   <td className="num">{s.lateCount} / {s.attendedCount}</td>
                   <td>
-                    <span className={`pct-badge ${latenessTone(s.pct)}`}>
+                    <span className={`pct-badge ${punctualityTone(s.pct)}`}>
                       {s.pct}{s.pct !== 'N/A' && '%'}
                     </span>
                   </td>
