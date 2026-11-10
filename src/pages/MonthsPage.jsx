@@ -19,7 +19,7 @@ export default function MonthsPage() {
           return (
             <button
               key={m.name}
-              onClick={() => navigate(`${base}/month?date=${monthKey(m)}`)}
+              onClick={() => navigate(`${base}/month?date=${monthKey(m)}`, { state: { from: base || '/' } })}
               className={`month-card ${isCurrent ? 'current-glow' : ''}`}
             >
               <span className="month-name">{m.name.split(' ')[0]}</span>

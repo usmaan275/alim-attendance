@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams, useBlocker } from 'react-router-dom'
+import { useNavigate, useSearchParams, useBlocker, useLocation } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { LESSONS, getFormattedLessonDate, isCurrentWeek, isFutureLesson } from '../constants'
 import { ALL_WEEKS, findWeek } from '../utils/calendar'
@@ -20,6 +20,7 @@ const EMPTY_NOTE = { comment: '', online: false }
 export default function WeekPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   const { isAdmin, base } = useAdminMode()
   const { students, selectedStudentId, setSelectedStudentId, refreshAttendance } = useClassContext()
 
@@ -305,7 +306,7 @@ export default function WeekPage() {
     if (!next) return
     setWeekSlide(dir)
     setLoading(true) // hide the old week's marks straight away
-    navigate(`${base}/week?date=${next.startDateStr}`, { replace: true })
+    navigate(`${base}/week?date=${next.startDateStr}`, { replace: true, state: location.state })
   }
 
   // Arrow buttons: with unsaved changes, ask first (swipes do the same through useSwipe below)

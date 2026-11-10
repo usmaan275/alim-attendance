@@ -18,17 +18,20 @@ export default function App() {
   // Current page without the /admin prefix: '/', '/month', '/week', '/stats' or '/stats/advanced'
   const page = (isAdmin ? location.pathname.replace(/^\/admin/, '') : location.pathname).replace(/\/+$/, '') || '/'
 
-  // Back = browser back when there is history inside the app, otherwise go to the parent page
-  const goBack = (fallback) => {
-    if (location.key !== 'default') navigate(-1)
-    else navigate(fallback, { replace: true })
+  // "Back" goes to the page its label names. If the history entry just below this one is exactly
+  // that page (we opened this page from it), use browser back so the history stays tidy;
+  // otherwise (typed URL, link from elsewhere) go straight to that page.
+  const goBack = (parent) => {
+    if (location.state && location.state.from === parent) navigate(-1)
+    else navigate(parent, { replace: true })
   }
 
   let back = null
   if (page === '/month') {
     back = { label: 'Back to Months', action: () => goBack(base || '/') }
   } else if (page === '/week') {
-    const parentMonth = monthKey(monthForWeek(findWeek(searchParams.get('date'))))
+    const fromMonth = location.state && location.state.from ? location.state.from.split('date=')[1] : null
+    const parentMonth = monthKey(monthForWeek(findWeek(searchParams.get('date')), fromMonth))
     back = { label: 'Back to Weeks', action: () => goBack(`${base}/month?date=${parentMonth}`) }
   } else if (page === '/stats/advanced') {
     back = { label: 'Back to Analytics', action: () => goBack('/stats') }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { MONTHS, getWeeksForMonth, isCurrentWeek } from '../constants'
 import { findMonth, monthKey } from '../utils/calendar'
 import useSwipe from '../hooks/useSwipe'
@@ -9,6 +9,7 @@ import useAdminMode from '../hooks/useAdminMode'
 export default function MonthPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   const { base } = useAdminMode()
 
   const selectedMonth = findMonth(searchParams.get('date'))
@@ -22,7 +23,7 @@ export default function MonthPage() {
     const next = MONTHS[monthIndex + (dir === 'next' ? 1 : -1)]
     if (!next) return
     setMonthSlide(dir)
-    navigate(`${base}/month?date=${monthKey(next)}`, { replace: true })
+    navigate(`${base}/month?date=${monthKey(next)}`, { replace: true, state: location.state })
   }
 
   const monthSwipe = useSwipe({
@@ -66,7 +67,7 @@ export default function MonthPage() {
             return (
               <button
                 key={w.startDateStr}
-                onClick={() => navigate(`${base}/week?date=${w.startDateStr}`)}
+                onClick={() => navigate(`${base}/week?date=${w.startDateStr}`, { state: { from: `${base}/month?date=${monthKey(selectedMonth)}` } })}
                 className={`week-card ${isCurrent ? 'current-glow' : ''}`}
               >
                 <span className="week-card-text">

@@ -31,6 +31,9 @@ export const findWeek = (dateStr) =>
   ALL_WEEKS[0]
 
 // The month a week belongs to (used for the back-button fallback)
-export const monthForWeek = (week) =>
-  MONTHS.find(m => getWeeksForMonth(m.year, m.month).some(w => w.startDateStr === week.startDateStr)) ||
-  MONTHS[0]
+export const monthForWeek = (week, preferredKey) => {
+  const contains = (m) => getWeeksForMonth(m.year, m.month).some(w => w.startDateStr === week.startDateStr)
+  const preferred = preferredKey ? MONTHS.find(m => monthKey(m) === preferredKey) : null
+  if (preferred && contains(preferred)) return preferred
+  return MONTHS.find(contains) || MONTHS[0]
+}

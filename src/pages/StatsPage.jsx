@@ -19,7 +19,7 @@ export default function StatsPage() {
   return (
     <section className="view">
       <button
-        onClick={() => navigate('/stats/advanced')}
+        onClick={() => navigate('/stats/advanced', { state: { from: '/stats' } })}
         className="advanced-analytics-btn"
       >
         Deep Insights &amp; Advanced Filters &rarr;
