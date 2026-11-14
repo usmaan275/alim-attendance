@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams, useBlocker, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams, useBlocker } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { LESSONS, getFormattedLessonDate, isCurrentWeek, isFutureLesson } from '../constants'
 import { ALL_WEEKS, findWeek } from '../utils/calendar'
@@ -19,14 +19,15 @@ const EMPTY_NOTE = { comment: '', online: false }
 // On /admin/week the same page marks whole lessons as No Class for every student.
 export default function WeekPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { isAdmin, base } = useAdminMode()
   const { students, selectedStudentId, setSelectedStudentId, refreshAttendance } = useClassContext()
 
   const selectedWeek = findWeek(searchParams.get('date'))
   const weekStart = selectedWeek.startDateStr
   const weekIndex = ALL_WEEKS.findIndex(w => w.startDateStr === weekStart)
+  const needsStudent = !isAdmin && !selectedStudentId // nobody is selected until a student is picked
 
   const [attendance, setAttendance] = useState({})   // lesson id -> 'P' | 'L' | 'A' | 'N' | null
   const [notes, setNotes] = useState({})             // lesson id -> { comment, online }
@@ -361,6 +362,7 @@ export default function WeekPage() {
               onChange={e => { setWeekSlide(null); setSelectedStudentId(e.target.value) }}
               className="select"
             >
+              <option value="" disabled>Select a student</option>
               {students.map(s => (
                 <option key={s.id} value={s.id}>#{s.roll_no} — {s.name}</option>
               ))}
@@ -372,7 +374,7 @@ export default function WeekPage() {
       {!isAdmin && (
         <button
           className="mark-all-btn"
-          disabled={loading || unmarkedLessons.length === 0}
+          disabled={needsStudent || loading || unmarkedLessons.length === 0}
           onClick={markAllPresent}
         >
           Mark all present
@@ -380,7 +382,9 @@ export default function WeekPage() {
       )}
 
       <div className="swipe-area" ref={weekSwipe.areaRef}>
-        {loading ? (
+        {needsStudent ? (
+          <div className="loading">Select a student above to start marking their lessons.</div>
+        ) : loading ? (
           <Loading label="Loading attendance records..." />
         ) : (
           <div
@@ -408,7 +412,7 @@ export default function WeekPage() {
         )}
       </div>
 
-      {!loading && (
+      {!loading && !needsStudent && (
         <button onClick={isAdmin ? requestSaveNoClass : handleSaveAttendance} className="submit-btn">
           {isAdmin ? 'Save No Class Lessons' : 'Save Attendance Record'}
         </button>

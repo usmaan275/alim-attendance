@@ -16,7 +16,6 @@ export default function useClassData() {
     const { data } = await supabase.from('students').select('*').order('roll_no')
     if (data && data.length > 0) {
       setStudents(data)
-      setSelectedStudentId(data[0].id)
     }
   }
 
